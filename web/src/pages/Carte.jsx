@@ -71,12 +71,16 @@ export default function Carte() {
             })}
             <span><b className="pt-hopital" />hôpital connecté</span>
           </div>}
-          <p className="aide-champ">Limites des provinces : geoBoundaries, d’après OpenStreetMap (ODbL). Le lieu retenu est la province de résidence déclarée à l’admission. Pendant le pilote, seules les zones desservies par les 3 hôpitaux connectés apparaissent : les autres provinces seront couvertes avec les vagues de déploiement.</p>
+          <p className="aide-champ">Limites des provinces : geoBoundaries, d’après OpenStreetMap (ODbL). Le lieu retenu est la province de résidence déclarée à l’admission. Pendant le pilote, une province n’apparaît que si ses habitants consultent dans l’un des 3 hôpitaux connectés ; la couverture deviendra complète avec les vagues de déploiement.</p>
         </div>
         <div className="carte fiche-province">
-          {!choisie ? <p className="info">Cliquez sur une province pour afficher son profil sanitaire.</p> : !fiche ? <p className="info">Chargement…</p> : <>
-            <div className="titre-page ligne"><div><h3>{fiche.province}</h3><p>{nombre(fiche.visites)} visites · {nombre(fiche.patients)} patients · {jours} jours</p></div><button className="lien" onClick={() => setChoisie(null)}>Fermer</button></div>
+          {!choisie ? <ListeProvinces provinces={d?.provinces || []} mesure={mesure} echelle={echelle} libelle={d?.libelle} onChoisir={setChoisie} /> : !fiche ? <p className="info">Chargement…</p> : <>
+            <div className="titre-page ligne"><div><h3>{fiche.province}</h3><p>{nombre(fiche.visites)} visites · {nombre(fiche.patients)} patients · {jours} jours</p></div><button className="lien" onClick={() => setChoisie(null)}>Toutes les provinces</button></div>
             {fiche.visites === 0 ? <p className="info">Aucun patient de cette province dans les hôpitaux connectés sur la période.</p> : <>
+              <div className="chiffres">
+                <div className="chiffre fort"><strong>{nombre(parProvince[fiche.province]?.n)}</strong><span>{d?.libelle.toLowerCase()}</span></div>
+                <div className="chiffre"><strong>{parProvince[fiche.province]?.part != null ? `${nombre(parProvince[fiche.province].part)} %` : '—'}</strong><span>des visites de la province</span></div>
+              </div>
               <h4>Profil sanitaire</h4>
               <BarresHorizontales lignes={fiche.profil.filter(p => p.n).map(p => ({ nom: p.libelle, n: p.n, id: p.indicateur }))} ton="claire" />
               <h4>Diagnostics les plus fréquents</h4>
@@ -124,8 +128,28 @@ function CarteTchad({ parProvince, etablissements, echelle, mesure, choisie, onC
     const max = Math.max(1, ...etablissements.map(e => e.n));
     for (const e of etablissements) if (e.lat)
       L.circleMarker([e.lat, e.lon], { radius: 5 + 6 * Math.sqrt(e.n / max), color: '#fff', weight: 2, fillColor: '#1F2A6B', fillOpacity: 0.95 })
-        .bindTooltip(`<strong>${e.nom}</strong><br>${e.ville} · ${libelle} : ${nombre(e.n)}`, { direction: 'top' }).addTo(g);
+        .bindTooltip(`<strong>${e.nom}</strong><br>${e.ville} · ${libelle} : ${nombre(e.n)} (patients de toutes provinces)`, { direction: 'top' }).on('click', () => onChoisir(e.province)).addTo(g);
     couches.current = g;
   }, [parProvince, etablissements, echelle, mesure, choisie, libelle, onChoisir]);
   return <div ref={boite} className="carte-tchad" role="img" aria-label={`Carte du Tchad : ${libelle} par province`} />;
+}
+
+// Liste de toutes les provinces, classées : accès direct à chaque province, même petite ou masquée par un hôpital.
+function ListeProvinces({ provinces, mesure, echelle, libelle, onChoisir }) {
+  const v = p => (mesure === 'part' ? p.part || 0 : p.n);
+  const triees = [...provinces].sort((a, b) => v(b) - v(a) || a.province.localeCompare(b.province));
+  const max = Math.max(1, ...triees.map(v));
+  return (
+    <>
+      <h3>{libelle} par province</h3>
+      <p className="aide-champ">Cliquez sur une province (ici ou sur la carte) pour son profil sanitaire.</p>
+      <ul className="liste-provinces">{triees.map(p => (
+        <li key={p.province}><button onClick={() => onChoisir(p.province)} className={v(p) ? '' : 'vide'}>
+          <i style={{ background: echelle.couleur(v(p)) }} />
+          <span className="nom">{p.province}</span>
+          <span className="piste"><span className="remplie" style={{ width: `${(v(p) / max) * 100}%`, background: echelle.couleur(v(p)) }} /></span>
+          <b>{v(p) ? `${nombre(v(p))}${mesure === 'part' ? ' %' : ''}` : '—'}</b>
+        </button></li>))}</ul>
+    </>
+  );
 }

@@ -15,11 +15,14 @@ const NOMS = ['MAHAMAT', 'ABAKAR', 'NGARLEJY', 'DJIMTOLA', 'NDOH', 'BICHARA', 'N
   'HISSEIN', 'TAHIR', 'DJIBRINE', 'NGARMBAYE', 'DOUMKEL', 'MOUSSA', 'ADOUM', 'NODJIRAM', 'GUELEM', 'SOUGUI', 'ACHEIKH', 'TOGOI', 'BEASSOUM', 'KASSIRE', 'NDJIKO'];
 // Aire de recrutement : province de l'hôpital, provinces voisines et références lointaines (hôpital national).
 const RECRUTEMENT = {
-  HGRN: [['N’Djamena', 62], ['Chari-Baguirmi', 9], ['Hadjer-Lamis', 7], ['Mayo-Kebbi Est', 3], ['Lac', 4], ['Kanem', 2], ['Batha', 3], ['Guéra', 3], ['Ouaddaï', 2], ['Salamat', 1], ['Moyen-Chari', 2], ['Barh El Gazel', 1], ['Wadi Fira', 1]],
-  HPMDO: [['Logone Occidental', 64], ['Logone Oriental', 13], ['Tandjilé', 8], ['Mandoul', 7], ['Mayo-Kebbi Ouest', 5], ['Moyen-Chari', 3]],
-  HDBGR: [['Mayo-Kebbi Est', 72], ['Mayo-Kebbi Ouest', 10], ['Tandjilé', 8], ['Chari-Baguirmi', 10]],
+  // L'hôpital national reçoit aussi des références de toutes les provinces, y compris du Nord.
+  HGRN: [['N’Djamena', 52], ['Chari-Baguirmi', 8], ['Hadjer-Lamis', 6], ['Mayo-Kebbi Est', 2], ['Lac', 4], ['Kanem', 3], ['Batha', 3], ['Guéra', 3], ['Ouaddaï', 3],
+    ['Salamat', 2], ['Moyen-Chari', 2], ['Barh El Gazel', 2], ['Wadi Fira', 2], ['Sila', 2], ['Borkou', 1.5], ['Ennedi-Est', 1], ['Ennedi-Ouest', 1], ['Tibesti', 1],
+    ['Logone Oriental', 1], ['Mandoul', 1], ['Tandjilé', 1], ['Mayo-Kebbi Ouest', 1], ['Logone Occidental', 1]],
+  HPMDO: [['Logone Occidental', 62], ['Logone Oriental', 13], ['Tandjilé', 8], ['Mandoul', 7], ['Mayo-Kebbi Ouest', 5], ['Moyen-Chari', 3], ['Mayo-Kebbi Est', 2]],
+  HDBGR: [['Mayo-Kebbi Est', 70], ['Mayo-Kebbi Ouest', 10], ['Tandjilé', 8], ['Chari-Baguirmi', 10], ['Logone Occidental', 2]],
 };
-const CHEFS_LIEUX = { 'Chari-Baguirmi': 'Massenya', 'Hadjer-Lamis': 'Massakory', Lac: 'Bol', Kanem: 'Mao', Batha: 'Ati', 'Guéra': 'Mongo', 'Ouaddaï': 'Abéché',
+const CHEFS_LIEUX = { Sila: 'Goz Beïda', Borkou: 'Faya-Largeau', 'Ennedi-Est': 'Amdjarass', 'Ennedi-Ouest': 'Fada', Tibesti: 'Bardaï', 'Chari-Baguirmi': 'Massenya', 'Hadjer-Lamis': 'Massakory', Lac: 'Bol', Kanem: 'Mao', Batha: 'Ati', 'Guéra': 'Mongo', 'Ouaddaï': 'Abéché',
   Salamat: 'Am Timan', 'Moyen-Chari': 'Sarh', 'Barh El Gazel': 'Moussoro', 'Wadi Fira': 'Biltine', 'Logone Oriental': 'Doba', 'Tandjilé': 'Laï', Mandoul: 'Koumra',
   'Mayo-Kebbi Ouest': 'Pala', 'Mayo-Kebbi Est': 'Bongor', 'N’Djamena': 'N’Djamena', 'Logone Occidental': 'Moundou' };
 const QUARTIERS = { HGRN: ['Chagoua', 'Moursal', 'Farcha', 'Dembé', 'Walia', 'Goudji', 'Diguel', 'Atrone', 'Habbena'],

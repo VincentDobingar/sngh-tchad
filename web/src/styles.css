@@ -470,3 +470,10 @@ code { white-space: nowrap; }
 .resultat-verif > strong { display: block; font-size: 1.15rem; margin-bottom: .5rem; }
 .fenetre { text-align: start; }
 .recu-numero, .recu-tete strong { text-align: center; }
+.liste-provinces { list-style: none; padding: 0; margin: .4rem 0 0; display: flex; flex-direction: column; gap: 2px; }
+.liste-provinces button { width: 100%; display: grid; grid-template-columns: 12px 130px 1fr 52px; gap: .5rem; align-items: center; border: none; background: none; padding: .28rem .3rem; min-height: 0; font-weight: 500; font-size: .84rem; text-align: start; border-radius: 6px; }
+.liste-provinces button:hover { background: var(--peche); }
+.liste-provinces button.vide { color: var(--doux); }
+.liste-provinces i { width: 12px; height: 12px; border-radius: 2px; border: 1px solid rgba(31,42,107,.2); }
+.liste-provinces b { text-align: end; color: var(--marine); }
+.liste-provinces .piste { height: 10px; }
