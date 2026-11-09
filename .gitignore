@@ -1,0 +1,7 @@
+node_modules/
+web/dist/
+server/data/
+*.log
+.env
+web/vite.config.js.timestamp-*.mjs
+jwt.secret

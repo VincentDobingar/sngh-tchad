@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 72"><g transform="translate(0,0)"><defs><clipPath id="b"><path d="M32 2 60 12v22c0 18-12 30-28 36C16 64 4 52 4 34V12z"/></clipPath></defs>
+<g clip-path="url(#b)"><rect width="22" height="72" fill="#002664"/><rect x="21" width="22" height="72" fill="#FECB00"/><rect x="42" width="22" height="72" fill="#C60C30"/></g>
+<path d="M32 2 60 12v22c0 18-12 30-28 36C16 64 4 52 4 34V12z" fill="none" stroke="#1F2A6B" stroke-width="3"/>
+<rect x="12" y="16" width="40" height="40" rx="9" fill="#1F2A6B"/><path d="M27 22h10v9h9v10h-9v9H27v-9h-9V31h9z" fill="#fff"/></g>
+<text x="74" y="38" font-family="Inter,'Segoe UI',Arial,sans-serif" font-weight="800" font-size="34" letter-spacing="1" fill="#FFFFFF">SNGH</text>
+<text x="76" y="56" font-family="Inter,'Segoe UI',Arial,sans-serif" font-weight="600" font-size="10.5" letter-spacing=".6" fill="#F9C1A4">SYSTÈME NATIONAL DE GESTION</text>
+<text x="76" y="68" font-family="Inter,'Segoe UI',Arial,sans-serif" font-weight="600" font-size="10.5" letter-spacing=".6" fill="#F9C1A4">HOSPITALIÈRE · TCHAD</text></svg>
