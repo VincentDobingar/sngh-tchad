@@ -1,4 +1,5 @@
 // Client de l'API du SNGH.
+import { t } from './i18n/index.js';
 const CLE_SESSION = 'sngh.session';
 // Adresse du serveur : vide = même domaine (serveur local) ; en ligne, VITE_API_URL (ex. https://sngh-api.up.railway.app).
 const BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '') + '/api';
@@ -23,9 +24,9 @@ export async function api(methode, chemin, corps) {
       headers: { 'Content-Type': 'application/json', ...(s?.token ? { Authorization: `Bearer ${s.token}` } : {}) },
       body: corps ? JSON.stringify(corps) : undefined,
     });
-  } catch { throw new ErreurApi(0, 'Serveur injoignable. Vérifiez la connexion.'); }
+  } catch { throw new ErreurApi(0, t('Serveur injoignable. Vérifiez la connexion.')); }
   if (r.status === 401 && chemin !== '/auth/connexion') { session.effacer(); window.dispatchEvent(new Event('sngh:deconnexion')); }
   const data = (r.headers.get('content-type') || '').includes('json') ? await r.json() : await r.text();
-  if (!r.ok) throw new ErreurApi(r.status, data?.erreur || 'Erreur inattendue.', data?.details, data);
+  if (!r.ok) throw new ErreurApi(r.status, t(data?.erreur || 'Erreur inattendue.'), data?.details, data);
   return data;
 }

@@ -5,7 +5,7 @@ import { api } from '../api.js';
 import { useApp } from '../App.jsx';
 import { useCharger, Champ, Pastille, Triage, Action } from '../components/ui.jsx';
 import Dossier from '../components/Dossier.jsx';
-import { duree, heure } from '../format.js';
+import { age, duree, heure, t } from '../format.js';
 import { peut } from '../droits.js';
 
 export default function FileAttente() {
@@ -20,24 +20,24 @@ export default function FileAttente() {
   return (
     <>
       <div className="titre-page ligne">
-        <div><h2>File d’attente</h2><p>Urgences d’abord (par gravité), puis par ordre d’arrivée. Mise à jour toutes les 30 secondes.</p></div>
-        <div className="outils"><select value={service} onChange={e => setService(e.target.value)}><option value="">Tous les services</option>{ref.services.map(s => <option key={s.code} value={s.code}>{s.nom}</option>)}</select></div>
+        <div><h2>{t("File d’attente")}</h2><p>{t("Urgences d’abord (par gravité), puis par ordre d’arrivée. Mise à jour toutes les 30 secondes.")}</p></div>
+        <div className="outils"><select value={service} onChange={e => setService(e.target.value)}><option value="">{t("Tous les services")}</option>{ref.services.map(s => <option key={s.code} value={s.code}>{s.nom}</option>)}</select></div>
       </div>
       {fait && <p className="bandeau succes">{fait}</p>}
       {err && <p className="bandeau erreur">{err}</p>}
       <div className="carte sans-marge">
         <table className="tableau">
-          <thead><tr><th>Ticket</th><th>Patient</th><th>Âge</th><th>Service</th><th>Motif</th><th>Attente</th><th>État</th><th /></tr></thead>
+          <thead><tr><th>{t("Ticket")}</th><th>{t("Patient")}</th><th>{t("Âge")}</th><th>{t("Service")}</th><th>{t("Motif")}</th><th>{t("Attente")}</th><th>{t("État")}</th><th /></tr></thead>
           <tbody>
-            {file?.length === 0 && <tr><td colSpan="8" className="info">Aucun patient en attente.</td></tr>}
+            {file?.length === 0 && <tr><td colSpan="8" className="info">{t("Aucun patient en attente.")}</td></tr>}
             {file?.map(v => (
               <tr key={v.id} className={v.triage === 'ROUGE' ? 'alerte' : ''}>
                 <td><strong>{v.ticket}</strong> <Triage niveau={v.triage} /></td>
-                <td>{v.nom} {v.prenom}<br /><small><code>{v.ipun}</code></small>{v.allergies && <Pastille ton="rouge">Allergie</Pastille>}</td>
-                <td>{v.age}</td><td>{v.service}</td><td>{v.motif || <small>—</small>}</td>
-                <td className={v.attente_min > 60 ? 'retard' : ''}>{duree(v.attente_min)}<br /><small>arrivé à {heure(v.arrivee)}</small></td>
-                <td>{v.statut === 'EN_COURS' ? <Pastille ton="orange">en consultation</Pastille> : <Pastille ton="gris">en attente</Pastille>}</td>
-                <td>{medecin && <Action className="principal petit" faire={async () => { if (v.statut === 'ATTENTE') await api('POST', `/visites/${v.id}/appeler`); setOuverte(v); }}>{v.statut === 'ATTENTE' ? 'Appeler' : 'Reprendre'}</Action>}</td>
+                <td>{v.nom} {v.prenom}<br /><small><code>{v.ipun}</code></small>{v.allergies && <Pastille ton="rouge">{t("Allergie")}</Pastille>}</td>
+                <td>{age(v.date_naissance)}</td><td>{t(v.service)}</td><td>{v.motif ? t(v.motif) : <small>—</small>}</td>
+                <td className={v.attente_min > 60 ? 'retard' : ''}>{duree(v.attente_min)}<br /><small>{t('arrivé à {heure}', { heure: heure(v.arrivee) })}</small></td>
+                <td>{v.statut === 'EN_COURS' ? <Pastille ton="orange">{t("en consultation")}</Pastille> : <Pastille ton="gris">{t("en attente")}</Pastille>}</td>
+                <td>{medecin && <Action className="principal petit" faire={async () => { if (v.statut === 'ATTENTE') await api('POST', `/visites/${v.id}/appeler`); setOuverte(v); }}>{t(v.statut === 'ATTENTE' ? 'Appeler' : 'Reprendre')}</Action>}</td>
               </tr>))}
           </tbody>
         </table>
@@ -66,60 +66,60 @@ function Consultation({ v, onFin, onRetour }) {
     setErr({}); setMsg('');
     try {
       await api('POST', `/visites/${v.id}/consultation`, { ...f, prescriptions: presc, examens });
-      onFin(`Consultation de ${v.nom} ${v.prenom} enregistrée${examens.length ? ` · ${examens.length} examen(s) transmis au laboratoire` : ''}${presc.length ? ` · ordonnance transmise à la pharmacie` : ''}.`);
+      onFin([t('Consultation de {patient} enregistrée.', { patient: `${v.nom} ${v.prenom}` }), examens.length ? t('{n} examen(s) transmis au laboratoire.', { n: examens.length }) : '', presc.length ? t('Ordonnance transmise à la pharmacie.') : ''].filter(Boolean).join(' '));
     } catch (e) { setErr(e.details || {}); setMsg(e.message); }
   };
 
   return (
     <>
       <div className="titre-page ligne">
-        <div><h2>Consultation · {v.ticket}</h2><p>{v.service} · arrivé à {heure(v.arrivee)}{v.motif ? ` · motif : ${v.motif}` : ''}</p></div>
-        <button onClick={onRetour}>Retour à la file</button>
+        <div><h2>{t('Consultation · {ticket}', { ticket: v.ticket })}</h2><p>{t('{service} · arrivé à {heure}', { service: t(v.service), heure: heure(v.arrivee) })}{v.motif ? ` · ${t('motif : {x}', { x: t(v.motif) })}` : ''}</p></div>
+        <button onClick={onRetour}>{t("Retour à la file")}</button>
       </div>
       <div className="consultation">
         <div className="carte"><Dossier patientId={v.patient_id} compact /></div>
         <div>
           <div className="carte">
-            <h3>Constantes</h3>
+            <h3>{t("Constantes")}</h3>
             <div className="grille petite">{CONSTANTES.map(([k, l, pas]) => (k !== 'pb' || enfant) && (
               <Champ key={k} libelle={l} erreur={err[k]}><input type="number" step={pas || '1'} value={f[k] ?? ''} onChange={e => set(k, e.target.value)} /></Champ>))}</div>
           </div>
           <div className="carte">
-            <h3>Examen clinique et diagnostic</h3>
+            <h3>{t("Examen clinique et diagnostic")}</h3>
             <Champ libelle="Anamnèse"><textarea rows="2" value={f.anamnese} onChange={e => set('anamnese', e.target.value)} /></Champ>
             <Champ libelle="Examen physique"><textarea rows="2" value={f.examen} onChange={e => set('examen', e.target.value)} /></Champ>
             <div className="grille espace-haut">
-              <Champ libelle="Rechercher un diagnostic"><input value={filtreDiag} onChange={e => setFiltreDiag(e.target.value)} placeholder="paludisme, B54…" /></Champ>
+              <Champ libelle="Rechercher un diagnostic"><input value={filtreDiag} onChange={e => setFiltreDiag(e.target.value)} placeholder={t("paludisme, B54…")} /></Champ>
               <Champ libelle="Diagnostic principal (CIM-10)" erreur={err.diagnostic_code}>
-                <select value={f.diagnostic_code} onChange={e => set('diagnostic_code', e.target.value)}><option value="">Choisir…</option>
+                <select value={f.diagnostic_code} onChange={e => set('diagnostic_code', e.target.value)}><option value="">{t("Choisir…")}</option>
                   {diagnostics.map(([c, l]) => <option key={c} value={c}>{c} · {l}</option>)}</select></Champ>
             </div>
-            {mpe && <p className="bandeau erreur">Maladie à potentiel épidémique ({mpe.maladie}) : la déclaration est transmise automatiquement à la surveillance (SIMR).</p>}
+            {mpe && <p className="bandeau erreur">{t('Maladie à potentiel épidémique ({maladie}) : la déclaration est transmise automatiquement à la surveillance (SIMR).', { maladie: mpe.maladie })}</p>}
           </div>
           <div className="carte">
-            <h3>Prescriptions</h3>
+            <h3>{t("Prescriptions")}</h3>
             {presc.map((x, i) => (
               <div key={i} className="ligne-presc">
                 <select value={x.medicament_id} onChange={e => setPresc(p => p.map((y, j) => j === i ? { ...y, medicament_id: e.target.value } : y))}>
-                  <option value="">Médicament…</option>{ref.medicaments.map(m => <option key={m.id} value={m.id}>{m.dci} {m.dosage} ({m.forme}){m.programme ? ' · programme' : ''}</option>)}</select>
-                <input placeholder="Posologie" value={x.posologie} onChange={e => setPresc(p => p.map((y, j) => j === i ? { ...y, posologie: e.target.value } : y))} />
-                <input type="number" min="1" placeholder="Qté" value={x.quantite} onChange={e => setPresc(p => p.map((y, j) => j === i ? { ...y, quantite: e.target.value } : y))} />
-                <button className="lien" onClick={() => setPresc(p => p.filter((_, j) => j !== i))}>Retirer</button>
+                  <option value="">{t("Médicament…")}</option>{ref.medicaments.map(m => <option key={m.id} value={m.id}>{m.dci} {m.dosage} ({m.forme}){m.programme ? ` · ${t('programme')}` : ''}</option>)}</select>
+                <input placeholder={t("Posologie")} value={x.posologie} onChange={e => setPresc(p => p.map((y, j) => j === i ? { ...y, posologie: e.target.value } : y))} />
+                <input type="number" min="1" placeholder={t("Qté")} value={x.quantite} onChange={e => setPresc(p => p.map((y, j) => j === i ? { ...y, quantite: e.target.value } : y))} />
+                <button className="lien" onClick={() => setPresc(p => p.filter((_, j) => j !== i))}>{t("Retirer")}</button>
                 {err[`prescription_${i}`] && <span className="erreur">{err[`prescription_${i}`]}</span>}
               </div>))}
-            <button onClick={() => setPresc(p => [...p, { medicament_id: '', posologie: '', quantite: '' }])}>Ajouter un médicament</button>
+            <button onClick={() => setPresc(p => [...p, { medicament_id: '', posologie: '', quantite: '' }])}>{t("Ajouter un médicament")}</button>
           </div>
           <div className="carte">
-            <h3>Examens de laboratoire</h3>
+            <h3>{t("Examens de laboratoire")}</h3>
             <div className="cases">{Object.entries(ref.examens).map(([c, e]) => (
               <label key={c} className={examens.includes(c) ? 'coche' : ''}><input type="checkbox" checked={examens.includes(c)} onChange={() => setExamens(x => x.includes(c) ? x.filter(y => y !== c) : [...x, c])} />{e.libelle}</label>))}</div>
           </div>
           <div className="carte">
-            <h3>Orientation</h3>
-            <div className="choix">{ISSUES.map(([k, l]) => <button key={k} type="button" className={f.issue === k ? 'choisi' : ''} onClick={() => set('issue', k)}>{l}</button>)}</div>
+            <h3>{t("Orientation")}</h3>
+            <div className="choix">{ISSUES.map(([k, l]) => <button key={k} type="button" className={f.issue === k ? 'choisi' : ''} onClick={() => set('issue', k)}>{t(l)}</button>)}</div>
             <Champ libelle="Conduite à tenir / compte rendu" className="espace-haut"><textarea rows="2" value={f.conduite} onChange={e => set('conduite', e.target.value)} /></Champ>
             {msg && <p className="bandeau erreur espace-haut">{msg}</p>}
-            <div className="actions"><button className="principal" onClick={valider}>Clôturer la consultation</button></div>
+            <div className="actions"><button className="principal" onClick={valider}>{t("Clôturer la consultation")}</button></div>
           </div>
         </div>
       </div>

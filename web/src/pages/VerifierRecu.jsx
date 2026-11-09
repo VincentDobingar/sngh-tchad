@@ -2,7 +2,7 @@
 // ou au patient de s'assurer qu'un reçu a bien été émis par le SNGH et n'a pas été annulé.
 import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { fcfa, dateHeure } from '../format.js';
+import { fcfa, dateHeure, t } from '../format.js';
 
 const MODES = { ESPECES: 'Espèces', AIRTEL_MONEY: 'Airtel Money', MOOV_MONEY: 'Moov Money', KONOOM: 'Konoom', TIERS_PAYANT: 'Tiers payant' };
 
@@ -15,26 +15,26 @@ export default function VerifierRecu({ numero }) {
   return (
     <div className="page-connexion">
       <div className="carte connexion verif">
-        <img src="/logo-sngh.svg" alt="SNGH" className="logo" />
-        <h1>Vérification d’un reçu</h1>
+        <img src="/logo-sngh.svg" alt={t("SNGH")} className="logo" />
+        <h1>{t("Vérification d’un reçu")}</h1>
         <form className="ligne-verif" onSubmit={e => { e.preventDefault(); location.hash = `verifier/${saisie.trim()}`; }}>
-          <input value={saisie} onChange={e => setSaisie(e.target.value.toUpperCase())} placeholder="R-HGRN-2026-000123" aria-label="Numéro du reçu" />
-          <button className="principal">Vérifier</button>
+          <input value={saisie} onChange={e => setSaisie(e.target.value.toUpperCase())} placeholder={t("R-HGRN-2026-000123")} aria-label={t("Numéro du reçu")} />
+          <button className="principal">{t("Vérifier")}</button>
         </form>
         {err && <p className="bandeau erreur">{err}</p>}
         {r && (
           <div className={`resultat-verif ${r.valide ? 'ok' : 'ko'}`}>
-            <strong>{r.valide ? 'Reçu authentique' : r.statut === 'ANNULEE' ? 'Reçu ANNULÉ' : 'Reçu non valide'}</strong>
+            <strong>{t(r.valide ? 'Reçu authentique' : r.statut === 'ANNULEE' ? 'Reçu ANNULÉ' : 'Reçu non valide')}</strong>
             <dl className="details">
-              <dt>Reçu</dt><dd><code>{r.numero_recu}</code></dd>
-              <dt>Montant</dt><dd>{fcfa(r.montant)}</dd>
-              <dt>Payé le</dt><dd>{dateHeure(r.payee_le)}</dd>
-              <dt>Mode</dt><dd>{MODES[r.mode] || r.mode}</dd>
-              <dt>Établissement</dt><dd>{r.etablissement}, {r.ville}</dd>
-              <dt>Patient</dt><dd>{r.patient}</dd>
+              <dt>{t("Reçu")}</dt><dd><code>{r.numero_recu}</code></dd>
+              <dt>{t("Montant")}</dt><dd>{fcfa(r.montant)}</dd>
+              <dt>{t("Payé le")}</dt><dd>{dateHeure(r.payee_le)}</dd>
+              <dt>{t("Mode")}</dt><dd>{t(MODES[r.mode] || r.mode)}</dd>
+              <dt>{t("Établissement")}</dt><dd>{t(r.etablissement)}, {t(r.ville)}</dd>
+              <dt>{t("Patient")}</dt><dd>{r.patient}</dd>
             </dl>
           </div>)}
-        <p className="aide-champ centre"><a href="#">Retour à la connexion</a></p>
+        <p className="aide-champ centre"><a href="#">{t("Retour à la connexion")}</a></p>
       </div>
     </div>
   );

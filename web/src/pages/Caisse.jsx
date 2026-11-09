@@ -6,7 +6,10 @@ import qrcode from 'qrcode-generator';
 import { api } from '../api.js';
 import { useApp } from '../App.jsx';
 import { useCharger, Pastille, Modale, Champ, Kpi } from '../components/ui.jsx';
-import { fcfa, nombre, heure, date, dateHeure } from '../format.js';
+import { fcfa, nombre, heure, date, dateHeure, t } from '../format.js';
+
+// Libellé d'une ligne de facture : actes et examens traduits ; médicaments « DCI dosage (programme, gratuit) ».
+const libelleLigne = l => { const m = l.match(/^(.*?) (\S+(?: \S+)?)( \(programme, gratuit\))?$/); return m && /\d/.test(m[2]) && t(m[1]) !== m[1] ? `${t(m[1])} ${m[2]}${m[3] ? ` (${t('programme, gratuit')})` : ''}` : t(l); };
 
 export default function Caisse() {
   const { ref } = useApp();
@@ -17,29 +20,29 @@ export default function Caisse() {
   const [recu, setRecu] = useState(null);
   return (
     <>
-      <div className="titre-page"><h2>Caisse</h2><p>Gratuités ciblées appliquées automatiquement (moins de 5 ans, grossesse, urgences). Une facture ne se supprime jamais : elle s’annule avec un motif.</p></div>
+      <div className="titre-page"><h2>{t("Caisse")}</h2><p>{t("Gratuités ciblées appliquées automatiquement (moins de 5 ans, grossesse, urgences). Une facture ne se supprime jamais : elle s’annule avec un motif.")}</p></div>
       <div className="onglets">
         {[['A_PAYER', 'À encaisser'], ['PAYEE', 'Payées'], ['PRISE_EN_CHARGE', 'Prises en charge'], ['ANNULEE', 'Annulées'], ['journee', 'Clôture du jour']].map(([k, l]) =>
-          <button key={k} className={onglet === k ? 'actif' : ''} onClick={() => setOnglet(k)}>{l}</button>)}
+          <button key={k} className={onglet === k ? 'actif' : ''} onClick={() => setOnglet(k)}>{t(l)}</button>)}
       </div>
       {err && <p className="bandeau erreur">{err}</p>}
       {onglet === 'journee' ? <Journee /> : (
         <div className="factures">
-          {liste?.length === 0 && <p className="info">Aucune facture.</p>}
+          {liste?.length === 0 && <p className="info">{t("Aucune facture.")}</p>}
           {liste?.map(f => (
             <div key={f.id} className={`carte facture ${f.statut.toLowerCase()}`}>
               <div className="titre-page ligne">
-                <div><h3>{f.nom} {f.prenom}</h3><p><code>{f.numero}</code> · {f.service} {f.ticket} · {dateHeure(f.cree_le)}</p></div>
-                <div className="montant"><strong>{fcfa(f.a_payer)}</strong>{f.prise_en_charge > 0 && <small>sur {fcfa(f.total)}</small>}</div>
+                <div><h3>{f.nom} {f.prenom}</h3><p><code>{f.numero}</code> · {t(f.service)} {f.ticket} · {dateHeure(f.cree_le)}</p></div>
+                <div className="montant"><strong>{fcfa(f.a_payer)}</strong>{f.prise_en_charge > 0 && <small>{t('sur {montant}', { montant: fcfa(f.total) })}</small>}</div>
               </div>
-              <table className="tableau compact"><tbody>{f.lignes.map(l => <tr key={l.id}><td>{l.libelle}</td><td className="num">{l.quantite} × {nombre(l.prix_unitaire)}</td><td className="num">{nombre(l.montant)}</td></tr>)}</tbody></table>
-              {f.motif_prise_en_charge && <p className="pec">Prise en charge : {f.motif_prise_en_charge} · {fcfa(f.prise_en_charge)}</p>}
-              {f.statut === 'PAYEE' && <p className="aide-champ">Reçu <code>{f.numero_recu}</code> · payée le {dateHeure(f.payee_le)} · {ref.modes[f.mode] || f.mode} {f.reference_paiement || ''} · {f.caissier}</p>}
-              {f.statut === 'ANNULEE' && <p className="aide-champ">Annulée : {f.motif_annulation}</p>}
+              <table className="tableau compact"><tbody>{f.lignes.map(l => <tr key={l.id}><td>{libelleLigne(l.libelle)}</td><td className="num">{nombre(l.quantite)} × {nombre(l.prix_unitaire)}</td><td className="num">{nombre(l.montant)}</td></tr>)}</tbody></table>
+              {f.motif_prise_en_charge && <p className="pec">{t('Prise en charge : {motif} · {montant}', { motif: t(f.motif_prise_en_charge), montant: fcfa(f.prise_en_charge) })}</p>}
+              {f.statut === 'PAYEE' && <p className="aide-champ">{t('Reçu {numero} · payée le {date} · {mode} {ref} · {caissier}', { numero: f.numero_recu, date: dateHeure(f.payee_le), mode: ref.modes[f.mode] || f.mode, ref: f.reference_paiement || '', caissier: t(f.caissier) })}</p>}
+              {f.statut === 'ANNULEE' && <p className="aide-champ">{t('Annulée : {motif}', { motif: t(f.motif_annulation) })}</p>}
               <div className="actions entre">
-                {f.statut !== 'ANNULEE' ? <button className="lien" onClick={() => setAnnuler(f)}>Annuler la facture</button> : <span />}
-                {f.statut === 'A_PAYER' && <button className="principal" onClick={() => setEncaisser(f)}>Encaisser {fcfa(f.a_payer)}</button>}
-                {f.statut === 'PAYEE' && <button onClick={() => setRecu(f)}>Reçu</button>}
+                {f.statut !== 'ANNULEE' ? <button className="lien" onClick={() => setAnnuler(f)}>{t("Annuler la facture")}</button> : <span />}
+                {f.statut === 'A_PAYER' && <button className="principal" onClick={() => setEncaisser(f)}>{t('Encaisser {montant}', { montant: fcfa(f.a_payer) })}</button>}
+                {f.statut === 'PAYEE' && <button onClick={() => setRecu(f)}>{t("Reçu")}</button>}
               </div>
             </div>))}
         </div>)}
@@ -87,25 +90,25 @@ function Encaisser({ f, onFerme, onFait }) {
   if (demande) {
     const op = ref.operateurs[demande.operateur];
     return (
-      <Modale titre={`Paiement ${op.nom}`} onFerme={onFerme}>
+      <Modale titre={t('Paiement {op}', { op: op.nom })} onFerme={onFerme}>
         <div className={`attente-paiement ${demande.statut.toLowerCase()}`} style={{ '--op': op.couleur }}>
           <strong className="op">{op.nom}</strong>
           <span className="montant-op">{fcfa(demande.montant)}</span>
           <span>{demande.telephone}</span>
-          {demande.statut === 'EN_ATTENTE' && <><span className="roue" aria-hidden="true" /><p>Demande envoyée. Le patient valide le paiement sur son téléphone avec son code secret…</p></>}
-          {demande.statut === 'CONFIRME' && <p className="ok">Paiement confirmé · réf. {demande.reference_operateur}</p>}
-          {['ECHEC', 'EXPIRE'].includes(demande.statut) && <p className="ko">{demande.motif || 'Paiement non abouti.'}</p>}
+          {demande.statut === 'EN_ATTENTE' && <><span className="roue" aria-hidden="true" /><p>{t("Demande envoyée. Le patient valide le paiement sur son téléphone avec son code secret…")}</p></>}
+          {demande.statut === 'CONFIRME' && <p className="ok">{t('Paiement confirmé · réf. {ref}', { ref: demande.reference_operateur })}</p>}
+          {['ECHEC', 'EXPIRE'].includes(demande.statut) && <p className="ko">{t(demande.motif || 'Paiement non abouti.')}</p>}
         </div>
-        {ref.passerelle === 'simulation' && <p className="aide-champ">Passerelle de démonstration : aucun argent réel n’est débité. La validation arrive au bout de quelques secondes ; un numéro finissant par 00 simule un refus.</p>}
+        {ref.passerelle === 'simulation' && <p className="aide-champ">{t("Passerelle de démonstration : aucun argent réel n’est débité. La validation arrive au bout de quelques secondes ; un numéro finissant par 00 simule un refus.")}</p>}
         <div className="actions entre">
-          {demande.statut === 'EN_ATTENTE' ? <button className="lien" onClick={async () => { await api('POST', `/caisse/paiements/${demande.id}/abandonner`); setDemande(d => ({ ...d, statut: 'ECHEC', motif: 'Demande abandonnée.' })); }}>Abandonner la demande</button> : <span />}
-          {['ECHEC', 'EXPIRE'].includes(demande.statut) && <button className="principal" onClick={() => setDemande(null)}>Réessayer</button>}
+          {demande.statut === 'EN_ATTENTE' ? <button className="lien" onClick={async () => { await api('POST', `/caisse/paiements/${demande.id}/abandonner`); setDemande(d => ({ ...d, statut: 'ECHEC', motif: 'Demande abandonnée.' })); }}>{t("Abandonner la demande")}</button> : <span />}
+          {['ECHEC', 'EXPIRE'].includes(demande.statut) && <button className="principal" onClick={() => setDemande(null)}>{t("Réessayer")}</button>}
         </div>
       </Modale>
     );
   }
   return (
-    <Modale titre={`Encaisser ${fcfa(f.a_payer)}`} onFerme={onFerme}>
+    <Modale titre={t('Encaisser {montant}', { montant: fcfa(f.a_payer) })} onFerme={onFerme}>
       <p>{f.nom} {f.prenom} · <code>{f.numero}</code></p>
       <Champ libelle="Mode de paiement" erreur={err.mode || err.operateur}>
         <div className="modes-paiement">{Object.entries(ref.modes).map(([k, l]) => (
@@ -113,13 +116,13 @@ function Encaisser({ f, onFerme, onFait }) {
             {ref.operateurs[k] && <i className="pastille-op" />}{l}</button>))}</div>
       </Champ>
       {mode === 'ESPECES' && <Champ libelle="Montant reçu" aide={rendu != null ? `Monnaie à rendre : ${fcfa(rendu)}` : null}><input type="number" value={recu} onChange={e => setRecuMontant(e.target.value)} /></Champ>}
-      {mobile && !manuel && <Champ libelle={`Numéro ${ref.operateurs[mode].nom} du payeur`} erreur={err.telephone} aide={<button type="button" className="lien" onClick={() => setManuel(true)}>Passerelle indisponible : saisir la référence reçue par SMS</button>}>
-        <input type="tel" value={tel} onChange={e => setTel(e.target.value)} placeholder="+235 6X XX XX XX" /></Champ>}
-      {(mode === 'TIERS_PAYANT' || (mobile && manuel)) && <Champ libelle={mode === 'TIERS_PAYANT' ? 'Numéro de prise en charge' : `Référence de la transaction ${ref.operateurs[mode].nom}`} erreur={err.reference}
+      {mobile && !manuel && <Champ libelle={t('Numéro {op} du payeur', { op: ref.operateurs[mode].nom })} erreur={err.telephone} aide={<button type="button" className="lien" onClick={() => setManuel(true)}>{t("Passerelle indisponible : saisir la référence reçue par SMS")}</button>}>
+        <input type="tel" value={tel} onChange={e => setTel(e.target.value)} placeholder={t("+235 6X XX XX XX")} /></Champ>}
+      {(mode === 'TIERS_PAYANT' || (mobile && manuel)) && <Champ libelle={mode === 'TIERS_PAYANT' ? 'Numéro de prise en charge' : t('Référence de la transaction {op}', { op: ref.operateurs[mode].nom })} erreur={err.reference}
         aide={mobile ? 'Saisie manuelle tracée comme telle dans le journal ; à réserver aux pannes de la passerelle.' : null}>
-        <input value={reference} onChange={e => setReference(e.target.value)} placeholder={mode === 'TIERS_PAYANT' ? 'ex. CNPS-2026-…' : 'référence du SMS de confirmation'} /></Champ>}
+        <input value={reference} onChange={e => setReference(e.target.value)} placeholder={t(mode === 'TIERS_PAYANT' ? 'ex. CNPS-2026-…' : 'référence du SMS de confirmation')} /></Champ>}
       {msg && <p className="bandeau erreur">{msg}</p>}
-      <div className="actions"><button className="principal" onClick={valider}>{mobile && !manuel ? `Envoyer la demande de paiement ${ref.operateurs[mode].nom}` : 'Valider l’encaissement'}</button></div>
+      <div className="actions"><button className="principal" onClick={valider}>{mobile && !manuel ? t('Envoyer la demande de paiement {op}', { op: ref.operateurs[mode].nom }) : t('Valider l’encaissement')}</button></div>
     </Modale>
   );
 }
@@ -131,7 +134,7 @@ function Annuler({ f, onFerme, onFait }) {
       <p>{f.numero} · {f.nom} {f.prenom} · {fcfa(f.a_payer)}</p>
       <Champ libelle="Motif (obligatoire, conservé dans le journal d’audit)"><input value={motif} onChange={e => setMotif(e.target.value)} /></Champ>
       {msg && <p className="bandeau erreur">{msg}</p>}
-      <div className="actions"><button className="danger" onClick={async () => { try { await api('POST', `/caisse/factures/${f.id}/annuler`, { motif }); onFait(); } catch (e) { setMsg(e.message); } }}>Confirmer l’annulation</button></div>
+      <div className="actions"><button className="danger" onClick={async () => { try { await api('POST', `/caisse/factures/${f.id}/annuler`, { motif }); onFait(); } catch (e) { setMsg(e.message); } }}>{t("Confirmer l’annulation")}</button></div>
     </Modale>
   );
 }
@@ -147,32 +150,32 @@ function Recu({ f: f0, onFerme }) {
     const q = qrcode(0, 'M'); q.addData(`${location.origin}/#verifier/${f.numero_recu}`); q.make();
     qr.current.innerHTML = q.createSvgTag({ cellSize: 2, margin: 0, scalable: true });
   }, [f?.numero_recu]);
-  if (!f) return <Modale titre="Reçu" onFerme={onFerme}><p className="info">Chargement…</p></Modale>;
+  if (!f) return <Modale titre="Reçu" onFerme={onFerme}><p className="info">{t("Chargement…")}</p></Modale>;
   const op = ref.operateurs[f.mode];
   return (
     <Modale titre="Reçu de paiement" onFerme={onFerme}>
       <div className="recu imprimable">
-        <div className="recu-tete"><img src="/logo-sngh.svg" alt="" /><div><strong>{f.etablissement}</strong><small>{f.ville} · République du Tchad</small></div></div>
-        <div className="recu-numero"><span>Reçu n°</span><strong>{f.numero_recu}</strong><small>Facture {f.numero}</small></div>
-        <p className="recu-patient">{f.nom} {f.prenom} · <code>{f.ipun}</code><br /><small>{f.service} {f.ticket}</small></p>
-        <table><tbody>{f.lignes.map(l => <tr key={l.id}><td>{l.libelle} ×{l.quantite}</td><td>{nombre(l.montant)}</td></tr>)}
-          <tr className="sous-total"><td>Total</td><td>{nombre(f.total)}</td></tr>
-          {f.prise_en_charge > 0 && <tr><td>{f.motif_prise_en_charge || 'Prise en charge'}</td><td>−{nombre(f.prise_en_charge)}</td></tr>}
-          <tr className="total"><td>Payé</td><td>{fcfa(f.a_payer)}</td></tr></tbody></table>
+        <div className="recu-tete"><img src="/logo-sngh.svg" alt="" /><div><strong>{t(f.etablissement)}</strong><small>{t(f.ville)} · {t('République du Tchad')}</small></div></div>
+        <div className="recu-numero"><span>{t("Reçu n°")}</span><strong>{f.numero_recu}</strong><small>{t('Facture {numero}', { numero: f.numero })}</small></div>
+        <p className="recu-patient">{f.nom} {f.prenom} · <code>{f.ipun}</code><br /><small>{t(f.service)} {f.ticket}</small></p>
+        <table><tbody>{f.lignes.map(l => <tr key={l.id}><td>{libelleLigne(l.libelle)} ×{l.quantite}</td><td>{nombre(l.montant)}</td></tr>)}
+          <tr className="sous-total"><td>{t("Total")}</td><td>{nombre(f.total)}</td></tr>
+          {f.prise_en_charge > 0 && <tr><td>{t(f.motif_prise_en_charge || 'Prise en charge')}</td><td>−{nombre(f.prise_en_charge)}</td></tr>}
+          <tr className="total"><td>{t("Payé")}</td><td>{fcfa(f.a_payer)}</td></tr></tbody></table>
         <div className="recu-paiement">
           <span className={`mode-recu ${op ? 'op' : ''}`} style={op ? { '--op': op.couleur } : undefined}>{ref.modes[f.mode] || f.mode}</span>
           {f.paiement && <small>{f.paiement.telephone}</small>}
-          {f.reference_paiement && <small>Réf. {f.reference_paiement}</small>}
+          {f.reference_paiement && <small>{t('Réf. {ref}', { ref: f.reference_paiement })}</small>}
         </div>
         <div className="recu-pied">
           <div ref={qr} className="recu-qr" />
-          <small>Le {dateHeure(f.payee_le)} · caisse : {f.caissier}<br />Reçu valable sans signature. Authenticité vérifiable en scannant le code QR ou sur {location.host}/#verifier.</small>
+          <small>{t('Le {date} · caisse : {caissier}', { date: dateHeure(f.payee_le), caissier: t(f.caissier) })}<br />{t('Reçu valable sans signature. Authenticité vérifiable en scannant le code QR ou sur {adresse}.', { adresse: `${location.host}/#verifier` })}</small>
         </div>
       </div>
-      {sms && <div className="bandeau succes colonne"><strong>SMS {sms.envoye === 'simulation' ? '(simulation)' : ''} au {sms.telephone} :</strong><span>{sms.texte}</span></div>}
+      {sms && <div className="bandeau succes colonne"><strong>{t(sms.envoye === 'simulation' ? 'SMS (simulation) au {tel} :' : 'SMS au {tel} :', { tel: sms.telephone })}</strong><span>{sms.texte}</span></div>}
       <div className="actions entre">
-        <button onClick={async () => { try { setSms(await api('POST', `/caisse/factures/${f.id}/recu-sms`, {})); } catch (e) { setSms({ telephone: '', texte: e.message, envoye: '' }); } }}>Envoyer par SMS</button>
-        <button className="principal" onClick={() => window.print()}>Imprimer</button>
+        <button onClick={async () => { try { setSms(await api('POST', `/caisse/factures/${f.id}/recu-sms`, {})); } catch (e) { setSms({ telephone: '', texte: e.message, envoye: '' }); } }}>{t("Envoyer par SMS")}</button>
+        <button className="principal" onClick={() => window.print()}>{t("Imprimer")}</button>
       </div>
     </Modale>
   );
@@ -186,12 +189,12 @@ function Journee() {
     <>
       <div className="outils espace-bas"><input type="date" value={jour} max={new Date().toISOString().slice(0, 10)} onChange={e => setJour(e.target.value)} /></div>
       {d && <>
-        <div className="kpis"><Kpi v={fcfa(d.total)} l={`encaissés le ${date(d.date)}`} ton="fort" /><Kpi v={fcfa(d.prises_en_charge.montant)} l={`pris en charge (${d.prises_en_charge.n} factures)`} /><Kpi v={d.annulees.n} l={`annulation(s) · ${fcfa(d.annulees.montant)}`} ton={d.annulees.n ? 'alerte' : ''} /></div>
-        <div className="carte"><h3>Répartition par mode de paiement</h3>
-          <table className="tableau"><thead><tr><th>Mode</th><th className="num">Nombre</th><th className="num">Montant</th></tr></thead>
+        <div className="kpis"><Kpi v={fcfa(d.total)} l={t('encaissés le {date}', { date: date(d.date) })} ton="fort" /><Kpi v={fcfa(d.prises_en_charge.montant)} l={t('pris en charge ({n} factures)', { n: d.prises_en_charge.n })} /><Kpi v={d.annulees.n} l={t('annulation(s) · {montant}', { montant: fcfa(d.annulees.montant) })} ton={d.annulees.n ? 'alerte' : ''} /></div>
+        <div className="carte"><h3>{t("Répartition par mode de paiement")}</h3>
+          <table className="tableau"><thead><tr><th>{t("Mode")}</th><th className="num">{t("Nombre")}</th><th className="num">{t("Montant")}</th></tr></thead>
             <tbody>{d.par_mode.map(m => <tr key={m.mode}><td>{ref.modes[m.mode]}</td><td className="num">{m.n}</td><td className="num">{fcfa(m.montant)}</td></tr>)}
-              <tr className="total"><td>Total à reverser</td><td /><td className="num"><strong>{fcfa(d.total)}</strong></td></tr></tbody></table>
-          <p className="aide-champ">Le montant en espèces doit correspondre au contenu de la caisse ; tout écart est justifié au procès-verbal de clôture.</p>
+              <tr className="total"><td>{t("Total à reverser")}</td><td /><td className="num"><strong>{fcfa(d.total)}</strong></td></tr></tbody></table>
+          <p className="aide-champ">{t("Le montant en espèces doit correspondre au contenu de la caisse ; tout écart est justifié au procès-verbal de clôture.")}</p>
         </div>
       </>}
     </>

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { Champ } from '../components/ui.jsx';
 import Dossier from '../components/Dossier.jsx';
-import { date } from '../format.js';
+import { date, age, t } from '../format.js';
 
 export default function Patients() {
   const [q, setQ] = useState('');
@@ -16,14 +16,14 @@ export default function Patients() {
   }, [q]);
   return (
     <>
-      <div className="titre-page"><h2>Dossiers patients</h2><p>Chaque ouverture de dossier est enregistrée dans le journal d’audit (qui, quand, quel dossier).</p></div>
+      <div className="titre-page"><h2>{t("Dossiers patients")}</h2><p>{t("Chaque ouverture de dossier est enregistrée dans le journal d’audit (qui, quand, quel dossier).")}</p></div>
       <div className="consultation">
         <div className="carte">
-          <Champ libelle="Rechercher"><input value={q} onChange={e => setQ(e.target.value)} placeholder="Nom, téléphone ou IPUN" autoFocus /></Champ>
-          {res && <ul className="resultats">{res.length === 0 ? <li className="info">Aucun patient.</li> : res.map(p => (
-            <li key={p.id}><button className={choisi === p.id ? 'choisi' : ''} onClick={() => setChoisi(p.id)}><strong>{p.nom} {p.prenom}</strong><small>{p.ipun} · {p.age} · dernière visite {date(p.derniere_visite)}</small></button></li>))}</ul>}
+          <Champ libelle="Rechercher"><input value={q} onChange={e => setQ(e.target.value)} placeholder={t("Nom, téléphone ou IPUN")} autoFocus /></Champ>
+          {res && <ul className="resultats">{res.length === 0 ? <li className="info">{t("Aucun patient.")}</li> : res.map(p => (
+            <li key={p.id}><button className={choisi === p.id ? 'choisi' : ''} onClick={() => setChoisi(p.id)}><strong>{p.nom} {p.prenom}</strong><small>{t('{ipun} · {age} · dernière visite {date}', { ipun: p.ipun, age: age(p.date_naissance), date: date(p.derniere_visite) })}</small></button></li>))}</ul>}
         </div>
-        <div className="carte">{choisi ? <Dossier key={choisi} patientId={choisi} /> : <p className="info">Choisissez un patient pour ouvrir son dossier.</p>}</div>
+        <div className="carte">{choisi ? <Dossier key={choisi} patientId={choisi} /> : <p className="info">{t("Choisissez un patient pour ouvrir son dossier.")}</p>}</div>
       </div>
     </>
   );

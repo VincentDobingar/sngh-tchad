@@ -1,6 +1,7 @@
 // Petits composants communs : chargement, champs avec erreur, indicateurs, fenêtres, étiquettes.
 import React, { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
+import { t } from '../i18n/index.js';
 
 // Charge une ressource et la recharge à la demande (et toutes les « periode » ms si précisé).
 export function useCharger(chemin, periode) {
@@ -20,10 +21,10 @@ export function useCharger(chemin, periode) {
 }
 
 export const Champ = ({ libelle, erreur, children, aide, className = '' }) => (
-  <label className={`${className} ${erreur ? 'invalide' : ''}`}>{libelle}{children}{aide && <span className="aide-champ">{aide}</span>}{erreur && <span className="erreur">{erreur}</span>}</label>
+  <label className={`${className} ${erreur ? 'invalide' : ''}`}>{t(libelle)}{children}{aide && <span className="aide-champ">{typeof aide === 'string' ? t(aide) : aide}</span>}{erreur && <span className="erreur">{t(erreur)}</span>}</label>
 );
 
-export const Kpi = ({ v, l, ton }) => <div className={'kpi ' + (ton || '')}><strong>{v}</strong><span>{l}</span></div>;
+export const Kpi = ({ v, l, ton }) => <div className={'kpi ' + (ton || '')}><strong>{v}</strong><span>{t(l)}</span></div>;
 export const Pastille = ({ ton = 'gris', children }) => <span className={`etiquette ${ton}`}>{children}</span>;
 
 export function Modale({ titre, onFerme, children, large }) {
@@ -34,8 +35,8 @@ export function Modale({ titre, onFerme, children, large }) {
   }, [onFerme]);
   return (
     <div className="voile centre" onMouseDown={e => e.target === e.currentTarget && onFerme()}>
-      <div className={'carte fenetre' + (large ? ' large' : '')} role="dialog" aria-modal="true" aria-label={titre}>
-        <div className="titre-page ligne"><h3>{titre}</h3><button className="lien" onClick={onFerme}>Fermer</button></div>
+      <div className={'carte fenetre' + (large ? ' large' : '')} role="dialog" aria-modal="true" aria-label={t(titre)}>
+        <div className="titre-page ligne"><h3>{t(titre)}</h3><button className="lien" onClick={onFerme}>{t("Fermer")}</button></div>
         {children}
       </div>
     </div>
@@ -52,7 +53,7 @@ export function Action({ faire, children, className, onErreur, ...rest }) {
         setEnCours(true); setErr('');
         try { await faire(); } catch (e) { onErreur ? onErreur(e) : setErr(e.message); } finally { setEnCours(false); }
       }}>{children}</button>
-      {err && <span className="erreur action-erreur">{err}</span>}
+      {err && <span className="erreur action-erreur">{t(err)}</span>}
     </>
   );
 }

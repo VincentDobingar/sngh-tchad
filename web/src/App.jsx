@@ -1,6 +1,8 @@
 import React, { useEffect, useState, createContext, useContext } from 'react';
 import { api, session } from './api.js';
 import { ROLES } from './droits.js';
+import { t, traduireRef, abonner, langueCourante } from './i18n/index.js';
+import SelecteurLangue from './components/SelecteurLangue.jsx';
 import Connexion from './pages/Connexion.jsx';
 import Accueil from './pages/Accueil.jsx';
 import FileAttente from './pages/FileAttente.jsx';
@@ -44,6 +46,8 @@ export default function App() {
   const [ref, setRef] = useState(null);
   const [page, setPage] = useState(() => location.hash.slice(1).split('/')[0]);
   const [param, setParam] = useState(() => location.hash.split('/')[1] || null);
+  const [langue, setLangue] = useState(langueCourante());
+  useEffect(() => abonner(setLangue), []);
 
   useEffect(() => {
     const deco = () => setS(null);
@@ -53,35 +57,37 @@ export default function App() {
     return () => { window.removeEventListener('sngh:deconnexion', deco); window.removeEventListener('hashchange', hash); };
   }, []);
   useEffect(() => { if (s) api('GET', '/referentiels').then(setRef).catch(() => {}); }, [s]);
+  const refT = React.useMemo(() => traduireRef(ref), [ref, langue]);
 
   // Vérification publique d'un reçu (code QR) : accessible sans connexion.
-  if (page === 'verifier') return <VerifierRecu numero={param} />;
-  if (!s) return <Connexion onConnecte={x => { session.ecrire(x); setS(x); }} />;
+  if (page === 'verifier') return <VerifierRecu key={langue} numero={param} />;
+  if (!s) return <Connexion key={langue} onConnecte={x => { session.ecrire(x); setS(x); }} />;
   const u = s.utilisateur;
   let pages = PAGES.filter(p => p.roles.includes(u.role));
   if (ORDRE[u.role]) pages = ORDRE[u.role].map(id => pages.find(p => p.id === id)).concat(pages.filter(p => !ORDRE[u.role].includes(p.id)));
   const courante = pages.find(p => p.id === page) || pages[0];
   const aller = (id, p) => { location.hash = p ? `${id}/${p}` : id; };
-  const etab = ref?.etablissements.find(e => e.id === u.etablissement_id);
+  const etab = refT?.etablissements.find(e => e.id === u.etablissement_id);
 
   return (
-    <Ctx.Provider value={{ u, ref, aller, param, etab }}>
+    <Ctx.Provider value={{ u, ref: refT, aller, param, etab, langue }}>
       <header className="entete">
         <div className="marque">
-          <img src="/logo-sngh-blanc.svg" alt="SNGH" />
-          <span>{etab ? etab.nom : 'Ministère de la Santé Publique'}</span>
+          <img src="/logo-sngh-blanc.svg" alt={t("SNGH")} />
+          <span>{etab ? etab.nom : t('Ministère de la Santé Publique')}</span>
         </div>
-        <nav>{pages.map(p => <button key={p.id} className={p.id === courante.id ? 'actif' : ''} onClick={() => aller(p.id)}>{p.titre}</button>)}</nav>
+        <nav>{pages.map(p => <button key={p.id} className={p.id === courante.id ? 'actif' : ''} onClick={() => aller(p.id)}>{t(p.titre)}</button>)}</nav>
         <div className="profil">
-          <span className="qui">{u.nom}<small>{ROLES[u.role]}</small></span>
-          <button className="lien" onClick={() => { session.effacer(); setS(null); }}>Déconnexion</button>
+          <span className="qui">{t(u.nom)}<small>{t(ROLES[u.role])}</small></span>
+          <SelecteurLangue sombre />
+          <button className="lien" onClick={() => { session.effacer(); setS(null); }}>{t("Déconnexion")}</button>
         </div>
       </header>
-      <div className="bandeau-demo">Prototype de démonstration · données entièrement fictives</div>
+      <div className="bandeau-demo">{t("Prototype de démonstration · données entièrement fictives")}</div>
       <main className="contenu">
-        {!ref ? <p className="info">Chargement des référentiels…</p> : <courante.C key={courante.id} />}
+        {!refT ? <p className="info">{t("Chargement des référentiels…")}</p> : <courante.C key={courante.id + langue} />}
       </main>
-      <footer className="pied">SNGH Tchad · Système National de Gestion Hospitalière · prototype {new Date().getFullYear()}</footer>
+      <footer className="pied">{t('SNGH Tchad · Système National de Gestion Hospitalière · prototype {annee}', { annee: new Date().getFullYear() })}</footer>
     </Ctx.Provider>
   );
 }
