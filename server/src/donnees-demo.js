@@ -4,7 +4,7 @@
 // Aucun de ces patients n'existe. Les noms sont tirés au hasard dans des listes de prénoms et de noms courants.
 import bcrypt from 'bcryptjs';
 import { tx } from './db.js';
-import { genererIpun, cleRecherche, libelleDiagnostic, interpreter, EXAMENS } from './referentiels.js';
+import { genererIpun, cleRecherche, libelleDiagnostic, interpreter, EXAMENS, OPERATEURS } from './referentiels.js';
 import { facturerActe, facturerExamen, ajouterLigne, facturerJournees } from './facturation.js';
 
 const PRENOMS_H = ['Mahamat', 'Abakar', 'Moussa', 'Hassan', 'Idriss', 'Ahmat', 'Saleh', 'Adoum', 'Djibrine', 'Ali', 'Oumar', 'Brahim', 'Youssouf', 'Issa',
@@ -13,6 +13,15 @@ const PRENOMS_F = ['Fatimé', 'Achta', 'Halimé', 'Zara', 'Mariam', 'Kaltouma', 
   'Nodjiel', 'Rémadji', 'Ndoasnan', 'Neloumta', 'Mbaïdedji', 'Larlem', 'Néné', 'Djénom', 'Solkem', 'Mbaïrassem'];
 const NOMS = ['MAHAMAT', 'ABAKAR', 'NGARLEJY', 'DJIMTOLA', 'NDOH', 'BICHARA', 'NADJILEM', 'KOUMAYE', 'MBAIOREM', 'ALLARASSEM', 'YAYA', 'OUMAR', 'BRAHIM',
   'HISSEIN', 'TAHIR', 'DJIBRINE', 'NGARMBAYE', 'DOUMKEL', 'MOUSSA', 'ADOUM', 'NODJIRAM', 'GUELEM', 'SOUGUI', 'ACHEIKH', 'TOGOI', 'BEASSOUM', 'KASSIRE', 'NDJIKO'];
+// Aire de recrutement : province de l'hôpital, provinces voisines et références lointaines (hôpital national).
+const RECRUTEMENT = {
+  HGRN: [['N’Djamena', 62], ['Chari-Baguirmi', 9], ['Hadjer-Lamis', 7], ['Mayo-Kebbi Est', 3], ['Lac', 4], ['Kanem', 2], ['Batha', 3], ['Guéra', 3], ['Ouaddaï', 2], ['Salamat', 1], ['Moyen-Chari', 2], ['Barh El Gazel', 1], ['Wadi Fira', 1]],
+  HPMDO: [['Logone Occidental', 64], ['Logone Oriental', 13], ['Tandjilé', 8], ['Mandoul', 7], ['Mayo-Kebbi Ouest', 5], ['Moyen-Chari', 3]],
+  HDBGR: [['Mayo-Kebbi Est', 72], ['Mayo-Kebbi Ouest', 10], ['Tandjilé', 8], ['Chari-Baguirmi', 10]],
+};
+const CHEFS_LIEUX = { 'Chari-Baguirmi': 'Massenya', 'Hadjer-Lamis': 'Massakory', Lac: 'Bol', Kanem: 'Mao', Batha: 'Ati', 'Guéra': 'Mongo', 'Ouaddaï': 'Abéché',
+  Salamat: 'Am Timan', 'Moyen-Chari': 'Sarh', 'Barh El Gazel': 'Moussoro', 'Wadi Fira': 'Biltine', 'Logone Oriental': 'Doba', 'Tandjilé': 'Laï', Mandoul: 'Koumra',
+  'Mayo-Kebbi Ouest': 'Pala', 'Mayo-Kebbi Est': 'Bongor', 'N’Djamena': 'N’Djamena', 'Logone Occidental': 'Moundou' };
 const QUARTIERS = { HGRN: ['Chagoua', 'Moursal', 'Farcha', 'Dembé', 'Walia', 'Goudji', 'Diguel', 'Atrone', 'Habbena'],
   HPMDO: ['Doumbeur', 'Quinze ans', 'Guelkoura', 'Dombao', 'Mbombaye', 'Haoussa'], HDBGR: ['Bongor centre', 'Koumi', 'Magao', 'Djogoye', 'Kim'] };
 
@@ -129,9 +138,10 @@ export function genererDemo(db, motDePasse) {
             const naissance = horodatage(jourMs(d) - age * 365.25 * 864e5).slice(0, 10);
             const estime = age > 15 && alea() < 0.35;
             const categorie = alea() < 0.08 ? 'ASSURE' : alea() < 0.03 ? 'INDIGENT' : 'PAYANT';
+            const provinceResidence = pondere(RECRUTEMENT[e.code]);
             const pid = Number(st.patient.run(nom, prenom, cleRecherche(`${nom} ${prenom}`), sexe, estime ? `${naissance.slice(0, 4)}-07-01` : naissance, estime ? 1 : 0,
               alea() < 0.75 ? `+235 6${entre(0, 9)} ${entre(10, 99)} ${entre(10, 99)} ${entre(10, 99)}` : null, `${choisir(PRENOMS_H)} ${nom}`, `${choisir(PRENOMS_F)} ${choisir(NOMS)}`,
-              choisir(QUARTIERS[e.code]), e.province, categorie, categorie === 'ASSURE' ? choisir(['CNPS', 'Mutuelle des enseignants', 'STAR Nationale']) : null,
+              provinceResidence === e.province ? choisir(QUARTIERS[e.code]) : CHEFS_LIEUX[provinceResidence], provinceResidence, categorie, categorie === 'ASSURE' ? choisir(['CNPS', 'Mutuelle des enseignants', 'STAR Nationale']) : null,
               alea() < 0.05 ? choisir(['Pénicilline', 'Sulfamides', 'Aspirine']) : null, e.id, u.accueil, horodatage(jourMs(d) + 7 * 36e5)).lastInsertRowid);
             st.ipun.run(genererIpun(pid, 2026), pid);
             p = { id: pid, sexe, age, categorie }; nPatients++;
@@ -282,18 +292,33 @@ export function genererDemo(db, motDePasse) {
         .run(e.id, para, 'PARA-2119X', horodatage(maintenant - 20 * 864e5).slice(0, 10), 240, horodatage(jourMs(400)));
     }
 
-    // ---------- Encaissements ----------
-    const modes = [['ESPECES', 62], ['AIRTEL_MONEY', 22], ['MOOV_MONEY', 11]];
+    // ---------- Encaissements (espèces, Airtel Money, Moov Money, Konoom, tiers payant) et reçus numérotés ----------
+    const modes = [['ESPECES', 56], ['AIRTEL_MONEY', 21], ['MOOV_MONEY', 12], ['KONOOM', 7]];
+    const payees = [];
     for (const { vid, le } of aPayer) {
       for (const f of db.prepare("SELECT f.*, e.code FROM factures f JOIN etablissements e ON e.id = f.etablissement_id WHERE f.visite_id = ? AND f.statut = 'A_PAYER'").all(vid)) {
         const caisse = comptes[f.code].caisse;
-        const quand = horodatage(Math.min(le, maintenant - 6e4));
+        const quand = Math.min(le, maintenant - 6e4);
         if (alea() < 0.008) { db.prepare("UPDATE factures SET statut = 'ANNULEE', annulee_par = ?, motif_annulation = 'Erreur de saisie : visite enregistrée en double' WHERE id = ?").run(caisse, f.id); continue; }
-        const p = db.prepare('SELECT p.categorie FROM visites v JOIN patients p ON p.id = v.patient_id WHERE v.id = ?').get(vid);
-        const mode = p.categorie === 'ASSURE' && alea() < 0.5 ? 'TIERS_PAYANT' : pondere(modes);
-        db.prepare('UPDATE factures SET statut = ?, mode = ?, reference_paiement = ?, caissier_id = ?, payee_le = ? WHERE id = ?')
-          .run('PAYEE', mode, mode.endsWith('MONEY') ? `${mode === 'AIRTEL_MONEY' ? 'AM' : 'MM'}${entre(10000000, 99999999)}` : null, caisse, quand, f.id);
+        const p = db.prepare('SELECT p.categorie, p.telephone FROM visites v JOIN patients p ON p.id = v.patient_id WHERE v.id = ?').get(vid);
+        let mode = p.categorie === 'ASSURE' && alea() < 0.5 ? 'TIERS_PAYANT' : pondere(modes);
+        if (OPERATEURS[mode] && !p.telephone) mode = 'ESPECES';
+        let ref = null;
+        if (OPERATEURS[mode]) {
+          ref = `${OPERATEURS[mode].prefixe}${horodatage(quand).slice(2, 10).replace(/-/g, '')}.${entre(1000, 9999)}.${entre(100000, 999999)}`;
+          db.prepare("INSERT INTO paiements (facture_id, operateur, telephone, montant, statut, reference_operateur, caissier_id, cree_le, traite_le) VALUES (?, ?, ?, ?, 'CONFIRME', ?, ?, ?, ?)")
+            .run(f.id, mode, p.telephone, f.a_payer, ref, caisse, horodatage(quand - 40e3), horodatage(quand));
+        } else if (mode === 'TIERS_PAYANT') ref = `PEC-${entre(100000, 999999)}`;
+        db.prepare('UPDATE factures SET statut = ?, mode = ?, reference_paiement = ?, caissier_id = ?, payee_le = ? WHERE id = ?').run('PAYEE', mode, ref, caisse, horodatage(quand), f.id);
+        payees.push({ id: f.id, code: f.code, quand });
       }
+    }
+    // Numéros de reçu dans l'ordre chronologique des paiements, par établissement et par année.
+    const seq = {};
+    for (const x of payees.sort((a, b) => a.quand - b.quand)) {
+      const an = horodatage(x.quand).slice(0, 4); const k = `${x.code}-${an}`;
+      seq[k] = (seq[k] || 0) + 1;
+      db.prepare('UPDATE factures SET numero_recu = ? WHERE id = ?').run(`R-${x.code}-${an}-${String(seq[k]).padStart(6, '0')}`, x.id);
     }
     return { patients: nPatients, visites: nVisites, comptes: Object.values(comptes).reduce((a, c) => a + Object.keys(c).length, 0) };
   });

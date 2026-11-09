@@ -5,7 +5,8 @@ import bcrypt from 'bcryptjs';
 import { journaliser } from '../db.js';
 import { ErreurHttp, exiger, portee } from '../auth.js';
 import { ROLES, ROLES_ETABLISSEMENT, DROITS } from '../droits.js';
-import { MPE, PROVINCES, DIAGNOSTICS, EXAMENS, TRIAGE, CATEGORIES, MODES_PAIEMENT, TYPES_ETABLISSEMENT, SERVICES } from '../referentiels.js';
+import { MPE, PROVINCES, DIAGNOSTICS, EXAMENS, TRIAGE, CATEGORIES, MODES_PAIEMENT, TYPES_ETABLISSEMENT, SERVICES, OPERATEURS, INDICATEURS_CARTE } from '../referentiels.js';
+import { modePasserelle } from '../paiements.js';
 
 const PERIODES = [7, 30, 90];
 
@@ -17,7 +18,7 @@ export default function routesPilotage(db) {
     res.json({
       etablissements: db.prepare(`SELECT * FROM etablissements ${p ? 'WHERE id = ?' : ''} ORDER BY id`).all(...(p ? [p] : [])),
       services: SERVICES, provinces: PROVINCES, diagnostics: DIAGNOSTICS, examens: EXAMENS, triage: TRIAGE, categories: CATEGORIES,
-      modes: MODES_PAIEMENT, types: TYPES_ETABLISSEMENT, mpe: MPE, roles: ROLES, droits: DROITS,
+      modes: MODES_PAIEMENT, operateurs: OPERATEURS, passerelle: modePasserelle(), types: TYPES_ETABLISSEMENT, mpe: MPE, roles: ROLES, droits: DROITS, indicateurs_carte: INDICATEURS_CARTE,
       medicaments: db.prepare('SELECT * FROM medicaments ORDER BY dci').all(),
     });
   });
@@ -91,6 +92,56 @@ export default function routesPilotage(db) {
       return { province: p, etablissements: es.length, visites: es.reduce((a, e) => a + e.visites, 0), alertes: es.reduce((a, e) => a + e.alertes, 0) };
     });
     res.json({ jours: j, etablissements: lignes, provinces });
+  });
+
+  // ---------- Carte sanitaire : géolocalisation par province de résidence du patient ----------
+  // Le lieu retenu est la province de résidence déclarée à l'admission (à défaut, celle de l'établissement).
+  function filtreIndicateur(ind) {
+    const def = INDICATEURS_CARTE[ind] || INDICATEURS_CARTE.visites;
+    if (def.codes) return { def, join: 'JOIN consultations c ON c.visite_id = v.id', where: `AND c.diagnostic_code IN (${def.codes.map(() => '?').join(',')})`, params: def.codes };
+    if (ind === 'deces') return { def, join: '', where: "AND v.issue = 'DECES'", params: [] };
+    return { def, join: '', where: '', params: [] };
+  }
+  r.get('/carte', exiger('tableauEtab'), (req, res) => {
+    const f = filtre(req);
+    const j = PERIODES.includes(Number(req.query.jours)) ? Number(req.query.jours) : 30;
+    const ind = INDICATEURS_CARTE[req.query.indicateur] ? req.query.indicateur : 'visites';
+    const x = filtreIndicateur(ind);
+    const depuis = `-${j} days`;
+    const lieu = "COALESCE(p.province, e.province)";
+    const base = `FROM visites v JOIN patients p ON p.id = v.patient_id JOIN etablissements e ON e.id = v.etablissement_id ${x.join}
+      WHERE v.arrivee >= datetime('now', ?) ${f.sql} ${x.where}`;
+    const parProvince = db.prepare(`SELECT ${lieu} AS province, COUNT(DISTINCT v.id) n, SUM(v.issue = 'DECES') deces FROM visites v JOIN patients p ON p.id = v.patient_id JOIN etablissements e ON e.id = v.etablissement_id ${x.join}
+      WHERE v.arrivee >= datetime('now', ?) ${f.sql} ${x.where} GROUP BY 1`).all(depuis, ...f.params, ...x.params);
+    const visitesProvince = Object.fromEntries(db.prepare(`SELECT ${lieu} AS province, COUNT(*) n FROM visites v JOIN patients p ON p.id = v.patient_id JOIN etablissements e ON e.id = v.etablissement_id
+      WHERE v.arrivee >= datetime('now', ?) ${f.sql} GROUP BY 1`).all(depuis, ...f.params).map(r => [r.province, r.n]));
+    const etabs = db.prepare(`SELECT e.id, COUNT(DISTINCT v.id) n ${base} GROUP BY e.id`).all(depuis, ...f.params, ...x.params);
+    const tous = db.prepare(`SELECT * FROM etablissements ${f.id ? 'WHERE id = ?' : ''}`).all(...f.params).map(e => ({ ...e, n: etabs.find(y => y.id === e.id)?.n || 0 }));
+    const semaines = db.prepare(`SELECT strftime('%Y-%W', v.arrivee) AS semaine, MIN(date(v.arrivee)) AS date, COUNT(DISTINCT v.id) n ${base} GROUP BY semaine ORDER BY semaine`).all(depuis, ...f.params, ...x.params);
+    res.json({ indicateur: ind, libelle: x.def.libelle, jours: j, etablissement: f.id || null,
+      provinces: PROVINCES.map(pr => { const l = parProvince.find(y => y.province === pr); const n = l?.n || 0, v = visitesProvince[pr] || 0;
+        return { province: pr, n, deces: l?.deces || 0, visites: v, part: v ? Math.round(n / v * 1000) / 10 : null }; }),
+      etablissements: tous, semaines, total: parProvince.reduce((a, y) => a + y.n, 0) });
+  });
+  // Fiche d'une province : profil sanitaire (tous les indicateurs), établissements fréquentés, évolution.
+  r.get('/carte/province/:nom', exiger('tableauEtab'), (req, res) => {
+    const f = filtre(req);
+    const pr = PROVINCES.find(x => x === req.params.nom);
+    if (!pr) throw new ErreurHttp(404, 'Province inconnue.');
+    const j = PERIODES.includes(Number(req.query.jours)) ? Number(req.query.jours) : 30;
+    const depuis = `-${j} days`;
+    const cond = `AND COALESCE(p.province, e.province) = ? AND v.arrivee >= datetime('now', ?) ${f.sql}`;
+    const profil = Object.entries(INDICATEURS_CARTE).filter(([k]) => k !== 'visites').map(([k, def]) => {
+      const x = filtreIndicateur(k);
+      const n = db.prepare(`SELECT COUNT(DISTINCT v.id) n FROM visites v JOIN patients p ON p.id = v.patient_id JOIN etablissements e ON e.id = v.etablissement_id ${x.join} WHERE 1 ${cond} ${x.where}`)
+        .get(pr, depuis, ...f.params, ...x.params).n;
+      return { indicateur: k, libelle: def.libelle, n };
+    });
+    const visites = db.prepare(`SELECT COUNT(*) n, COUNT(DISTINCT v.patient_id) patients FROM visites v JOIN patients p ON p.id = v.patient_id JOIN etablissements e ON e.id = v.etablissement_id WHERE 1 ${cond}`).get(pr, depuis, ...f.params);
+    const etabs = db.prepare(`SELECT e.nom, COUNT(*) n FROM visites v JOIN patients p ON p.id = v.patient_id JOIN etablissements e ON e.id = v.etablissement_id WHERE 1 ${cond} GROUP BY e.id ORDER BY n DESC`).all(pr, depuis, ...f.params);
+    const morbidite = db.prepare(`SELECT c.diagnostic_libelle AS nom, COUNT(*) n FROM visites v JOIN patients p ON p.id = v.patient_id JOIN etablissements e ON e.id = v.etablissement_id
+      JOIN consultations c ON c.visite_id = v.id WHERE 1 ${cond} GROUP BY c.diagnostic_code ORDER BY n DESC LIMIT 6`).all(pr, depuis, ...f.params);
+    res.json({ province: pr, jours: j, visites: visites.n, patients: visites.patients, profil, etablissements: etabs, morbidite });
   });
 
   // Surveillance : cas des maladies à potentiel épidémique sur 7 jours, comparés au seuil d'alerte, et série sur 8 semaines.

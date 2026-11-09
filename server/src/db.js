@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS etablissements (
   type TEXT NOT NULL,              -- HN (hôpital national), HP (hôpital provincial), HD (hôpital de district)
   province TEXT NOT NULL,
   ville TEXT NOT NULL,
+  lat REAL,
+  lon REAL,
   actif INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS services (
@@ -182,7 +184,8 @@ CREATE TABLE IF NOT EXISTS factures (
   prise_en_charge INTEGER NOT NULL DEFAULT 0,
   motif_prise_en_charge TEXT,
   a_payer INTEGER NOT NULL DEFAULT 0,
-  mode TEXT CHECK (mode IN ('ESPECES','AIRTEL_MONEY','MOOV_MONEY','TIERS_PAYANT')),
+  mode TEXT,                        -- ESPECES, AIRTEL_MONEY, MOOV_MONEY, KONOOM, TIERS_PAYANT (référentiel MODES_PAIEMENT)
+  numero_recu TEXT UNIQUE,          -- R-<établissement>-<année>-<séquence>, attribué à l'encaissement
   reference_paiement TEXT,
   caissier_id INTEGER REFERENCES utilisateurs(id),
   payee_le TEXT,
@@ -190,6 +193,21 @@ CREATE TABLE IF NOT EXISTS factures (
   motif_annulation TEXT,
   cree_le TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Demandes de paiement mobile money (Airtel Money, Moov Money, Konoom) : le client valide sur son téléphone.
+CREATE TABLE IF NOT EXISTS paiements (
+  id INTEGER PRIMARY KEY,
+  facture_id INTEGER NOT NULL REFERENCES factures(id),
+  operateur TEXT NOT NULL,
+  telephone TEXT NOT NULL,
+  montant INTEGER NOT NULL,
+  statut TEXT NOT NULL DEFAULT 'EN_ATTENTE' CHECK (statut IN ('EN_ATTENTE','CONFIRME','ECHEC','EXPIRE')),
+  reference_operateur TEXT,
+  motif TEXT,
+  caissier_id INTEGER REFERENCES utilisateurs(id),
+  cree_le TEXT NOT NULL DEFAULT (datetime('now')),
+  traite_le TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_paiements_facture ON paiements(facture_id);
 CREATE TABLE IF NOT EXISTS lignes_facture (
   id INTEGER PRIMARY KEY,
   facture_id INTEGER NOT NULL REFERENCES factures(id),
@@ -219,7 +237,39 @@ export function openDb(file = process.env.SNGH_DB || 'data/sngh.db') {
   db.exec('PRAGMA foreign_keys = ON;');
   if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL;');
   db.exec(SCHEMA);
+  migrer(db);
   return db;
+}
+
+// Évolutions du schéma appliquées aux bases déjà créées.
+function migrer(db) {
+  const cols = t => db.prepare(`PRAGMA table_info(${t})`).all().map(c => c.name);
+  if (!cols('etablissements').includes('lat')) { db.exec('ALTER TABLE etablissements ADD COLUMN lat REAL'); db.exec('ALTER TABLE etablissements ADD COLUMN lon REAL'); }
+  // Factures : nouveaux modes de paiement (Konoom) et numéro de reçu ; l'ancienne contrainte sur le mode est retirée.
+  const sql = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'factures'").get().sql;
+  if (sql.includes("CHECK (mode IN")) {
+    db.exec('PRAGMA foreign_keys = OFF');
+    tx(db, () => {
+      db.exec(sql.replace('CREATE TABLE factures', 'CREATE TABLE factures_v2').replace(/mode TEXT CHECK \(mode IN \([^)]*\)\)/, 'mode TEXT'));
+      const c = cols('factures').join(', ');
+      db.exec(`INSERT INTO factures_v2 (${c}) SELECT ${c} FROM factures`);
+      db.exec('DROP TABLE factures');
+      db.exec('ALTER TABLE factures_v2 RENAME TO factures');
+    });
+    db.exec('PRAGMA foreign_keys = ON');
+  }
+  if (!cols('factures').includes('numero_recu')) {
+    db.exec('ALTER TABLE factures ADD COLUMN numero_recu TEXT');
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_factures_recu ON factures(numero_recu)');
+  }
+}
+
+// Numéro de reçu séquentiel par établissement et par année : R-HGRN-2026-000123.
+export function numeroRecu(db, etablissementId, le = new Date().toISOString()) {
+  const code = db.prepare('SELECT code FROM etablissements WHERE id = ?').get(etablissementId).code;
+  const prefixe = `R-${code}-${le.slice(0, 4)}-`;
+  const dernier = db.prepare("SELECT MAX(CAST(substr(numero_recu, ?) AS INTEGER)) n FROM factures WHERE numero_recu LIKE ?").get(prefixe.length + 1, prefixe + '%').n || 0;
+  return prefixe + String(dernier + 1).padStart(6, '0');
 }
 
 export function tx(db, fn) {

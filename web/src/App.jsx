@@ -14,6 +14,8 @@ import National from './pages/National.jsx';
 import Surveillance from './pages/Surveillance.jsx';
 import Rapport from './pages/Rapport.jsx';
 import Admin from './pages/Admin.jsx';
+import Carte from './pages/Carte.jsx';
+import VerifierRecu from './pages/VerifierRecu.jsx';
 
 export const Ctx = createContext(null);
 export const useApp = () => useContext(Ctx);
@@ -22,6 +24,7 @@ export const useApp = () => useContext(Ctx);
 const PAGES = [
   { id: 'national', titre: 'Vue nationale', roles: ['decideur', 'admin'], C: National },
   { id: 'tableau', titre: 'Tableau de bord', roles: ['directeur', 'decideur', 'admin'], C: Tableau },
+  { id: 'carte', titre: 'Carte sanitaire', roles: ['decideur', 'directeur', 'admin'], C: Carte },
   { id: 'accueil', titre: 'Accueil et admission', roles: ['accueil'], C: Accueil },
   { id: 'file', titre: 'File d’attente', roles: ['medecin', 'infirmier'], C: FileAttente },
   { id: 'lits', titre: 'Lits', roles: ['infirmier', 'medecin', 'directeur'], C: Lits },
@@ -51,6 +54,8 @@ export default function App() {
   }, []);
   useEffect(() => { if (s) api('GET', '/referentiels').then(setRef).catch(() => {}); }, [s]);
 
+  // Vérification publique d'un reçu (code QR) : accessible sans connexion.
+  if (page === 'verifier') return <VerifierRecu numero={param} />;
   if (!s) return <Connexion onConnecte={x => { session.ecrire(x); setS(x); }} />;
   const u = s.utilisateur;
   let pages = PAGES.filter(p => p.roles.includes(u.role));

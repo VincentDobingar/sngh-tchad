@@ -1,9 +1,10 @@
 // Plateau technique et logistique : laboratoire (M09), pharmacie et stocks (M12), facturation et caisse (M14),
 // hospitalisation et gestion des lits (M05). Tout est limité à l'établissement du compte.
 import express from 'express';
-import { tx, journaliser } from '../db.js';
+import { tx, journaliser, numeroRecu } from '../db.js';
 import { ErreurHttp, exiger } from '../auth.js';
-import { EXAMENS, interpreter, MODES_PAIEMENT } from '../referentiels.js';
+import { EXAMENS, interpreter, MODES_PAIEMENT, OPERATEURS } from '../referentiels.js';
+import { demander, verifier, normaliserTelephone, modePasserelle } from '../paiements.js';
 import { ajouterLigne, facturerJournees } from '../facturation.js';
 import { etablissementDe } from './parcours.js';
 
@@ -145,17 +146,86 @@ export default function routesPlateau(db) {
     res.json(lignes.map(f => ({ ...f, lignes: db.prepare('SELECT * FROM lignes_facture WHERE facture_id = ? ORDER BY id').all(f.id) })));
   });
   const factureDe = (req, e) => dansEtab('SELECT * FROM factures WHERE id = ?', Number(req.params.id), e);
+  // Solde une facture : statut payé, mode, référence et numéro de reçu séquentiel.
+  function solder(f, u, mode, ref) {
+    tx(db, () => {
+      db.prepare("UPDATE factures SET statut = 'PAYEE', mode = ?, reference_paiement = ?, caissier_id = ?, payee_le = datetime('now'), numero_recu = ? WHERE id = ?")
+        .run(mode, ref, u.id, numeroRecu(db, f.etablissement_id), f.id);
+      journaliser(db, u, 'ENCAISSEMENT', 'factures', f.id, { montant: f.a_payer, mode, reference: ref });
+    });
+  }
+  // Espèces et tiers payant : encaissement direct. Mobile money : par une demande au téléphone du client (ci-dessous) ;
+  // la saisie manuelle d'une référence reste possible en cas de panne de la passerelle, et elle est tracée comme telle.
   r.post('/caisse/factures/:id/encaisser', exiger('caisse'), (req, res) => {
     const f = factureDe(req, etab(req));
     if (f.statut !== 'A_PAYER') throw new ErreurHttp(409, 'Cette facture n’est pas à encaisser.');
     const mode = req.body?.mode;
     if (!MODES_PAIEMENT[mode]) throw new ErreurHttp(400, 'Mode de paiement requis.', { mode: 'Choisissez un mode de paiement.' });
     const ref = texte(req.body?.reference, 40);
-    if (['AIRTEL_MONEY', 'MOOV_MONEY'].includes(mode) && !ref) throw new ErreurHttp(400, 'Référence de la transaction requise.', { reference: 'Référence mobile money requise.' });
-    db.prepare("UPDATE factures SET statut = 'PAYEE', mode = ?, reference_paiement = ?, caissier_id = ?, payee_le = datetime('now') WHERE id = ?").run(mode, ref, req.utilisateur.id, f.id);
-    journaliser(db, req.utilisateur, 'ENCAISSEMENT', 'factures', f.id, { montant: f.a_payer, mode });
-    res.json(db.prepare('SELECT * FROM factures WHERE id = ?').get(f.id));
+    if ((OPERATEURS[mode] || mode === 'TIERS_PAYANT') && !ref) throw new ErreurHttp(400, 'Référence de la transaction requise.', { reference: 'Référence requise.' });
+    solder(f, req.utilisateur, mode, OPERATEURS[mode] ? `${ref} (saisie manuelle)` : ref);
+    res.json(factureComplete(f.id));
   });
+
+  // ---------- Paiement mobile money : Airtel Money, Moov Money, Konoom ----------
+  r.post('/caisse/factures/:id/paiement-mobile', exiger('caisse'), (req, res) => {
+    const f = factureDe(req, etab(req));
+    if (f.statut !== 'A_PAYER') throw new ErreurHttp(409, 'Cette facture n’est pas à encaisser.');
+    const operateur = req.body?.operateur;
+    if (!OPERATEURS[operateur]) throw new ErreurHttp(400, 'Opérateur requis.', { operateur: 'Choisissez Airtel Money, Moov Money ou Konoom.' });
+    const tel = normaliserTelephone(req.body?.telephone);
+    if (!tel) throw new ErreurHttp(400, 'Numéro de téléphone invalide.', { telephone: 'Numéro tchadien à 8 chiffres.' });
+    if (db.prepare("SELECT 1 FROM paiements WHERE facture_id = ? AND statut = 'EN_ATTENTE'").get(f.id)) throw new ErreurHttp(409, 'Une demande de paiement est déjà en attente pour cette facture.');
+    const id = Number(db.prepare('INSERT INTO paiements (facture_id, operateur, telephone, montant, caissier_id) VALUES (?, ?, ?, ?, ?)').run(f.id, operateur, tel, f.a_payer, req.utilisateur.id).lastInsertRowid);
+    let envoi;
+    try { envoi = demander(operateur, { montant: f.a_payer, telephone: tel, reference: f.numero }); }
+    catch (e) { db.prepare("UPDATE paiements SET statut = 'ECHEC', motif = ?, traite_le = datetime('now') WHERE id = ?").run(e.message, id); throw new ErreurHttp(502, e.message); }
+    journaliser(db, req.utilisateur, 'DEMANDE_PAIEMENT', 'paiements', id, { operateur, montant: f.a_payer });
+    res.status(201).json({ ...db.prepare('SELECT * FROM paiements WHERE id = ?').get(id), message: envoi.message, passerelle: modePasserelle() });
+  });
+  // Suivi de la demande : à la confirmation de l'opérateur, la facture est soldée et le reçu numéroté.
+  r.get('/caisse/paiements/:id', exiger('caisse'), (req, res) => {
+    const e = etab(req);
+    const p = dansEtab('SELECT pa.*, f.etablissement_id FROM paiements pa JOIN factures f ON f.id = pa.facture_id WHERE pa.id = ?', Number(req.params.id), e);
+    const maj = verifier(p.operateur, p);
+    if (maj) {
+      db.prepare("UPDATE paiements SET statut = ?, reference_operateur = ?, motif = ?, traite_le = datetime('now') WHERE id = ? AND statut = 'EN_ATTENTE'").run(maj.statut, maj.reference || null, maj.motif || null, p.id);
+      const f = db.prepare('SELECT * FROM factures WHERE id = ?').get(p.facture_id);
+      if (maj.statut === 'CONFIRME' && f.statut === 'A_PAYER') solder(f, req.utilisateur, p.operateur, maj.reference);
+      else journaliser(db, req.utilisateur, `PAIEMENT_${maj.statut}`, 'paiements', p.id, { motif: maj.motif });
+    }
+    const a = db.prepare('SELECT * FROM paiements WHERE id = ?').get(p.id);
+    res.json({ ...a, facture: a.statut === 'CONFIRME' ? factureComplete(a.facture_id) : null });
+  });
+  r.post('/caisse/paiements/:id/abandonner', exiger('caisse'), (req, res) => {
+    const p = dansEtab('SELECT pa.*, f.etablissement_id FROM paiements pa JOIN factures f ON f.id = pa.facture_id WHERE pa.id = ?', Number(req.params.id), etab(req));
+    if (p.statut !== 'EN_ATTENTE') throw new ErreurHttp(409, 'Cette demande est déjà traitée.');
+    db.prepare("UPDATE paiements SET statut = 'ECHEC', motif = 'Abandonnée à la caisse', traite_le = datetime('now') WHERE id = ?").run(p.id);
+    journaliser(db, req.utilisateur, 'PAIEMENT_ABANDONNE', 'paiements', p.id);
+    res.json({ ok: true });
+  });
+
+  // ---------- Reçus ----------
+  function factureComplete(id) {
+    const f = db.prepare(`SELECT f.*, p.nom, p.prenom, p.ipun, p.telephone, v.ticket, s.nom AS service, e.nom AS etablissement, e.code AS etablissement_code, e.ville, u.nom AS caissier
+      FROM factures f JOIN visites v ON v.id = f.visite_id JOIN patients p ON p.id = v.patient_id JOIN services s ON s.id = v.service_id
+      JOIN etablissements e ON e.id = f.etablissement_id LEFT JOIN utilisateurs u ON u.id = f.caissier_id WHERE f.id = ?`).get(id);
+    return { ...f, lignes: db.prepare('SELECT * FROM lignes_facture WHERE facture_id = ? ORDER BY id').all(id),
+      paiement: db.prepare("SELECT * FROM paiements WHERE facture_id = ? AND statut = 'CONFIRME' ORDER BY id DESC LIMIT 1").get(id) || null };
+  }
+  r.get('/caisse/factures/:id', exiger('caisse'), (req, res) => { factureDe(req, etab(req)); res.json(factureComplete(Number(req.params.id))); });
+  // Reçu par SMS (simulé dans le prototype : le texte est affiché et tracé, l'envoi passera par la passerelle SMS).
+  r.post('/caisse/factures/:id/recu-sms', exiger('caisse'), (req, res) => {
+    factureDe(req, etab(req));
+    const f = factureComplete(Number(req.params.id));
+    if (f.statut !== 'PAYEE') throw new ErreurHttp(409, 'Seule une facture payée a un reçu.');
+    const tel = normaliserTelephone(req.body?.telephone || f.paiement?.telephone || f.telephone);
+    if (!tel) throw new ErreurHttp(400, 'Numéro de téléphone invalide.', { telephone: 'Numéro tchadien à 8 chiffres.' });
+    const texteSms = `${f.etablissement_code} : reçu ${f.numero_recu}, ${f.a_payer} FCFA payés le ${f.payee_le.slice(0, 10).split('-').reverse().join('/')} (${MODES_PAIEMENT[f.mode]}${f.reference_paiement ? ' ' + f.reference_paiement.replace(' (saisie manuelle)', '') : ''}). Vérification : code ${f.numero_recu}. Merci.`;
+    journaliser(db, req.utilisateur, 'RECU_SMS', 'factures', f.id, { telephone: tel });
+    res.json({ telephone: tel, texte: texteSms, envoye: modePasserelle() === 'reel' ? 'en file' : 'simulation' });
+  });
+
   // Aucune suppression : une facture se corrige par une annulation motivée et tracée.
   r.post('/caisse/factures/:id/annuler', exiger('caisse'), (req, res) => {
     const f = factureDe(req, etab(req));

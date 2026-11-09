@@ -37,6 +37,15 @@ export function creerApp(db) {
   const api = express.Router();
   api.get('/sante', (_req, res) => res.json({ ok: true, service: 'SNGH Tchad (prototype)', version: '0.1.0' }));
   api.post('/auth/connexion', (req, res) => res.json(connecter(db, req.body?.login, req.body?.mot_de_passe)));
+  // Vérification publique d'un reçu (QR code imprimé) : montant, date, établissement, statut ; pas de données médicales.
+  api.get('/recus/:numero', (req, res) => {
+    const f = db.prepare(`SELECT f.numero_recu, f.numero, f.a_payer, f.total, f.prise_en_charge, f.mode, f.payee_le, f.statut, e.nom AS etablissement, e.ville, p.nom, p.prenom
+      FROM factures f JOIN etablissements e ON e.id = f.etablissement_id JOIN visites v ON v.id = f.visite_id JOIN patients p ON p.id = v.patient_id
+      WHERE f.numero_recu = ?`).get(String(req.params.numero).toUpperCase().slice(0, 40));
+    if (!f) return res.status(404).json({ erreur: 'Reçu introuvable : ce document n’a pas été émis par le SNGH.' });
+    res.json({ numero_recu: f.numero_recu, facture: f.numero, montant: f.a_payer, mode: f.mode, payee_le: f.payee_le, valide: f.statut === 'PAYEE',
+      statut: f.statut, etablissement: f.etablissement, ville: f.ville, patient: `${f.prenom} ${f.nom.slice(0, 1)}.` });
+  });
   api.use(authentifier);
   api.use(compteActif(db));
   api.get('/auth/moi', (req, res) => res.json(req.utilisateur));

@@ -420,3 +420,53 @@ button.petit { padding: .35rem .8rem; min-height: 34px; }
 code { white-space: nowrap; }
 @media (max-width: 860px) { .tableau td:first-child { min-width: 0; } .tableau th, .tableau td { padding: .45rem .5rem; } }
 .recu td:first-child { text-align: start; }
+
+/* Carte sanitaire */
+.carte-tchad { height: 560px; border-radius: 8px; border: 1px solid var(--ligne); background: #F4F6FB; z-index: 0; }
+.legende-carte { display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-size: .78rem; color: var(--doux); margin: .6rem 0 .2rem; }
+.legende-carte span { display: inline-flex; align-items: center; gap: .35rem; }
+.legende-carte i { width: 16px; height: 12px; border-radius: 2px; border: 1px solid rgba(31,42,107,.2); }
+.legende-carte .pt-hopital { width: 12px; height: 12px; border-radius: 50%; background: var(--marine); border: 2px solid #fff; box-shadow: 0 0 0 1px var(--marine); }
+.fiche-province h4 { margin: .9rem 0 .4rem; color: var(--marine); font-size: .92rem; }
+.fiche-province .ligne-barre { grid-template-columns: 150px 1fr 40px 4px; font-size: .82rem; }
+@media (min-width: 1001px) { .fiche-province { position: sticky; top: 4.5rem; } }
+@media (max-width: 1000px) { .carte-tchad { height: 440px; } }
+
+/* Paiements mobile money et reçus */
+.modes-paiement { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .4rem; }
+.modes-paiement .mode { display: flex; align-items: center; gap: .45rem; justify-content: center; }
+.modes-paiement .mode.choisi { background: var(--marine); color: #fff; border-color: var(--marine); }
+.pastille-op { width: 10px; height: 10px; border-radius: 50%; background: var(--op); box-shadow: 0 0 0 2px #fff; }
+.attente-paiement { display: flex; flex-direction: column; align-items: center; gap: .35rem; text-align: center; padding: 1.2rem; border-radius: 10px; border: 2px solid var(--op); background: #fff; }
+.attente-paiement .op { color: var(--op); font-size: 1.1rem; }
+.attente-paiement .montant-op { font-size: 2rem; font-weight: 800; color: var(--marine); }
+.attente-paiement p { margin: .3rem 0 0; color: var(--doux); }
+.attente-paiement .ok { color: var(--vert); font-weight: 700; } .attente-paiement .ko { color: var(--rouge); font-weight: 700; }
+.attente-paiement.confirme { background: var(--vert-f); } .attente-paiement.echec, .attente-paiement.expire { background: var(--rouge-f); }
+.roue { width: 34px; height: 34px; border-radius: 50%; border: 4px solid var(--ligne); border-top-color: var(--op); animation: tourne 0.9s linear infinite; margin-top: .4rem; }
+@keyframes tourne { to { transform: rotate(360deg); } }
+.recu { gap: .5rem; }
+.recu-tete { display: flex; gap: .6rem; align-items: center; border-bottom: 2px solid var(--marine); padding-bottom: .5rem; }
+.recu-tete img { height: 34px; }
+.recu-tete div { display: flex; flex-direction: column; } .recu-tete small { color: var(--doux); }
+.recu-numero { display: flex; flex-direction: column; align-items: center; background: var(--fond); border-radius: 6px; padding: .4rem; }
+.recu-numero span { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--doux); }
+.recu-numero strong { font-size: 1.15rem; color: var(--marine); letter-spacing: .03em; }
+.recu-numero small { color: var(--doux); }
+.recu-patient { margin: 0; }
+.recu tr.sous-total td { font-weight: 600; }
+.recu-paiement { display: flex; flex-wrap: wrap; gap: .3rem .8rem; align-items: center; }
+.mode-recu { font-weight: 700; color: var(--marine); }
+.mode-recu.op { color: var(--op); }
+.recu-pied { display: grid; grid-template-columns: 70px 1fr; gap: .7rem; align-items: center; border-top: 1px dashed var(--ligne); padding-top: .5rem; }
+.recu-qr svg { width: 70px; height: 70px; display: block; }
+.recu-pied small { color: var(--doux); font-size: .74rem; line-height: 1.35; }
+.verif { width: min(460px, 100%); }
+.verif h1 { font-size: 1.25rem; text-align: center; }
+.ligne-verif { display: flex; gap: .5rem; } .ligne-verif input { flex: 1; text-transform: uppercase; }
+.resultat-verif { border-radius: 10px; padding: .9rem 1rem; border: 2px solid; }
+.resultat-verif.ok { border-color: var(--vert); background: var(--vert-f); } .resultat-verif.ok > strong { color: var(--vert); }
+.resultat-verif.ko { border-color: var(--rouge); background: var(--rouge-f); } .resultat-verif.ko > strong { color: var(--rouge); }
+.resultat-verif > strong { display: block; font-size: 1.15rem; margin-bottom: .5rem; }
+.fenetre { text-align: start; }
+.recu-numero, .recu-tete strong { text-align: center; }

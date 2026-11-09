@@ -126,3 +126,41 @@ test('pilotage : tableau de bord établissement et national, surveillance, rappo
   const r = (await appel('GET', '/api/rapports/mensuel', null, 'directeur')).corps; assert.ok(r.consultations >= 3);
   assert.equal((await appel('GET', '/api/admin/utilisateurs', null, 'decideur')).status, 403);
 });
+
+test('paiement Konoom : demande au téléphone, confirmation, reçu numéroté vérifiable publiquement', async () => {
+  const p = (await appel('POST', '/api/patients', { nom: 'Hassan', prenom: 'Zara', sexe: 'F', date_naissance: '1990-03-03', telephone: '+235 66 11 22 33' }, 'accueil')).corps;
+  const v = (await appel('POST', '/api/visites', { patient_id: p.id, service_code: 'MED' }, 'accueil')).corps;
+  const f = db.prepare('SELECT * FROM factures WHERE visite_id = ?').get(v.id);
+  assert.equal((await appel('POST', `/api/caisse/factures/${f.id}/paiement-mobile`, { operateur: 'ORANGE', telephone: '66112233' }, 'caisse')).status, 400);
+  assert.equal((await appel('POST', `/api/caisse/factures/${f.id}/paiement-mobile`, { operateur: 'KONOOM', telephone: '123' }, 'caisse')).status, 400);
+  const d = await appel('POST', `/api/caisse/factures/${f.id}/paiement-mobile`, { operateur: 'KONOOM', telephone: '66 11 22 33' }, 'caisse');
+  assert.equal(d.status, 201); assert.equal(d.corps.statut, 'EN_ATTENTE');
+  assert.equal((await appel('POST', `/api/caisse/factures/${f.id}/paiement-mobile`, { operateur: 'KONOOM', telephone: '66112233' }, 'caisse')).status, 409, 'une seule demande en attente');
+  // Le client valide : on avance l'horloge de la demande au-delà du délai simulé.
+  db.prepare("UPDATE paiements SET cree_le = datetime('now', '-30 seconds') WHERE id = ?").run(d.corps.id);
+  const r = (await appel('GET', `/api/caisse/paiements/${d.corps.id}`, null, 'caisse')).corps;
+  assert.equal(r.statut, 'CONFIRME'); assert.match(r.reference_operateur, /^KN/);
+  assert.match(r.facture.numero_recu, /^R-HGRN-\d{4}-\d{6}$/); assert.equal(r.facture.mode, 'KONOOM');
+  const pub = await fetch(`${base}/api/recus/${r.facture.numero_recu}`).then(x => x.json());
+  assert.equal(pub.valide, true); assert.equal(pub.montant, f.a_payer); assert.equal(pub.patient, 'Zara H.');
+  assert.equal((await fetch(`${base}/api/recus/R-HGRN-2026-999999`)).status, 404);
+  const sms = (await appel('POST', `/api/caisse/factures/${f.id}/recu-sms`, {}, 'caisse')).corps;
+  assert.match(sms.texte, new RegExp(r.facture.numero_recu));
+  // Refus du client (numéro de test finissant par 00) : la facture reste à payer.
+  const p2 = (await appel('POST', '/api/patients', { nom: 'Ali', prenom: 'Moussa', sexe: 'M', date_naissance: '1985-01-01' }, 'accueil')).corps;
+  const v2 = (await appel('POST', '/api/visites', { patient_id: p2.id, service_code: 'MED' }, 'accueil')).corps;
+  const f2 = db.prepare('SELECT * FROM factures WHERE visite_id = ?').get(v2.id);
+  const d2 = (await appel('POST', `/api/caisse/factures/${f2.id}/paiement-mobile`, { operateur: 'MOOV_MONEY', telephone: '99 12 34 00' }, 'caisse')).corps;
+  db.prepare("UPDATE paiements SET cree_le = datetime('now', '-30 seconds') WHERE id = ?").run(d2.id);
+  assert.equal((await appel('GET', `/api/caisse/paiements/${d2.id}`, null, 'caisse')).corps.statut, 'ECHEC');
+  assert.equal(db.prepare('SELECT statut FROM factures WHERE id = ?').get(f2.id).statut, 'A_PAYER');
+});
+
+test('carte sanitaire : cas par province de résidence et profil d’une province', async () => {
+  const c = (await appel('GET', '/api/carte?indicateur=paludisme&jours=30', null, 'decideur')).corps;
+  assert.equal(c.provinces.length, 23); assert.ok(c.total >= 1);
+  assert.equal(c.etablissements.find(e => e.code === 'HGRN').lat, 12.1131);
+  const fiche = (await appel('GET', `/api/carte/province/${encodeURIComponent('N’Djamena')}`, null, 'directeur')).corps;
+  assert.ok(fiche.visites >= 1);
+  assert.equal((await appel('GET', '/api/carte', null, 'caisse')).status, 403);
+});

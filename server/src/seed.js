@@ -5,9 +5,9 @@ import { tx } from './db.js';
 import { SERVICES, MEDICAMENTS } from './referentiels.js';
 
 export const ETABLISSEMENTS = [
-  { code: 'HGRN', nom: 'Hôpital Général de Référence Nationale', type: 'HN', province: 'N’Djamena', ville: 'N’Djamena' },
-  { code: 'HPMDO', nom: 'Hôpital provincial de Moundou', type: 'HP', province: 'Logone Occidental', ville: 'Moundou' },
-  { code: 'HDBGR', nom: 'Hôpital de district de Bongor', type: 'HD', province: 'Mayo-Kebbi Est', ville: 'Bongor' },
+  { code: 'HGRN', nom: 'Hôpital Général de Référence Nationale', type: 'HN', province: 'N’Djamena', ville: 'N’Djamena', lat: 12.1131, lon: 15.0491 },
+  { code: 'HPMDO', nom: 'Hôpital provincial de Moundou', type: 'HP', province: 'Logone Occidental', ville: 'Moundou', lat: 8.5667, lon: 16.0833 },
+  { code: 'HDBGR', nom: 'Hôpital de district de Bongor', type: 'HD', province: 'Mayo-Kebbi Est', ville: 'Bongor', lat: 10.2806, lon: 15.3722 },
 ];
 // Nombre de lits par service selon le type d'établissement.
 const ECHELLE = { HN: 1.5, HP: 1, HD: 0.6 };
@@ -15,7 +15,10 @@ const ECHELLE = { HN: 1.5, HP: 1, HD: 0.6 };
 export function seed(db, { adminPassword = process.env.SNGH_ADMIN_PASSWORD || 'ChangezMoi!2026' } = {}) {
   return tx(db, () => {
     const insE = db.prepare('INSERT OR IGNORE INTO etablissements (code, nom, type, province, ville) VALUES (?, ?, ?, ?, ?)');
-    for (const e of ETABLISSEMENTS) insE.run(e.code, e.nom, e.type, e.province, e.ville);
+    for (const e of ETABLISSEMENTS) {
+      insE.run(e.code, e.nom, e.type, e.province, e.ville);
+      db.prepare('UPDATE etablissements SET lat = ?, lon = ? WHERE code = ? AND lat IS NULL').run(e.lat, e.lon, e.code);
+    }
     const insS = db.prepare('INSERT OR IGNORE INTO services (etablissement_id, code, nom) VALUES (?, ?, ?)');
     const insL = db.prepare('INSERT OR IGNORE INTO lits (service_id, numero) VALUES (?, ?)');
     for (const e of db.prepare('SELECT * FROM etablissements').all()) {

@@ -97,7 +97,31 @@ export const TARIFS = {
   JOURNEE:      { HN: 3000, HP: 2500, HD: 2000 },
 };
 
-export const MODES_PAIEMENT = { ESPECES: 'Espèces', AIRTEL_MONEY: 'Airtel Money', MOOV_MONEY: 'Moov Money', TIERS_PAYANT: 'Tiers payant' };
+export const MODES_PAIEMENT = { ESPECES: 'Espèces', AIRTEL_MONEY: 'Airtel Money', MOOV_MONEY: 'Moov Money', KONOOM: 'Konoom', TIERS_PAYANT: 'Tiers payant' };
+// Portefeuilles mobiles acceptés : le client valide le paiement sur son téléphone (demande « push » ou code USSD).
+export const OPERATEURS = {
+  AIRTEL_MONEY: { nom: 'Airtel Money', prefixe: 'AM', couleur: '#E40000' },
+  MOOV_MONEY:   { nom: 'Moov Money',   prefixe: 'MM', couleur: '#0064B4' },
+  KONOOM:       { nom: 'Konoom',       prefixe: 'KN', couleur: '#1E8E5A' },
+};
+
+// Indicateurs de la carte sanitaire : groupes de diagnostics CIM-10 (ou situations : visites, décès).
+export const INDICATEURS_CARTE = {
+  visites:      { libelle: 'Toutes les visites' },
+  paludisme:    { libelle: 'Paludisme (simple et grave)', codes: ['B54', 'B50.0'] },
+  palu_grave:   { libelle: 'Paludisme grave', codes: ['B50.0'] },
+  malnutrition: { libelle: 'Malnutrition aiguë', codes: ['E43', 'E44.0'] },
+  diarrhees:    { libelle: 'Diarrhées', codes: ['A09'] },
+  ira:          { libelle: 'Infections respiratoires aiguës', codes: ['J06.9', 'J18.9'] },
+  mpe:          { libelle: 'Maladies à potentiel épidémique', codes: ['A90', 'A00.9', 'B05.9', 'A39.0', 'A98.4'] },
+  dengue:       { libelle: 'Dengue', codes: ['A90'] },
+  rougeole:     { libelle: 'Rougeole', codes: ['B05.9'] },
+  meningite:    { libelle: 'Méningite', codes: ['A39.0'] },
+  maternite:    { libelle: 'Santé maternelle (CPN, accouchements, pré-éclampsie)', codes: ['Z34.9', 'O80', 'O14.1'] },
+  chroniques:   { libelle: 'Hypertension et diabète', codes: ['I10', 'E11.9'] },
+  traumatismes: { libelle: 'Traumatismes', codes: ['S06.9', 'T14.9'] },
+  deces:        { libelle: 'Décès' },
+};
 export const CATEGORIES = { PAYANT: 'Payant', GRATUITE: 'Gratuité ciblée', ASSURE: 'Assuré (tiers payant 80 %)', INDIGENT: 'Indigent (validé par le service social)' };
 
 // Âge en années (décimal) à une date donnée.
