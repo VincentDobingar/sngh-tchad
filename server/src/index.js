@@ -21,4 +21,10 @@ if ((demo || env.SNGH_DONNEES_DEMO === '1') && !db.prepare('SELECT 1 FROM visite
   console.log(`Données de démonstration FICTIVES générées : ${r.patients} patients, ${r.visites} visites.`);
 }
 const port = Number(env.PORT) || 3000;
-creerApp(db).listen(port, () => console.log(`SNGH Tchad (prototype) démarré sur http://localhost:${port}`));
+creerApp(db).listen(port, () => console.log(`SNGH Tchad (prototype) démarré sur http://localhost:${port}`))
+  .on('error', e => {
+    if (e.code !== 'EADDRINUSE') throw e;
+    console.error(`Le port ${port} est déjà utilisé (par exemple par SENTINELLE Dengue). Arrêtez l’autre serveur ou choisissez un autre port :`);
+    console.error('  PowerShell : $env:PORT=3001; npm run start:demo --prefix server');
+    process.exit(1);
+  });
